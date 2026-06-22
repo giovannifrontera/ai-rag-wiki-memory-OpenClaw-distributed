@@ -1,0 +1,6 @@
+memory/lancedb/
+memory/*.db
+__pycache__/
+*.pyc
+.env
+*.sync-conflict-*
