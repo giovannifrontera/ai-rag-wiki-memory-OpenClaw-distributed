@@ -56,12 +56,18 @@ If `<wiki-context>` is **not present**: fall back to §query.
 ```
 1. Read wiki-session.md → check "status"
 2. If status = "in-progress" or "needs-repair" → warn the user BEFORE anything
-3. Is <wiki-context> present? → yes: use §injected-context | no: go to step 4
-4. Classify the intent (see §classification)
-5. Multiple intents? → handle them in sequence
-6. Emit: [INTENT: X | WORKSPACE: Y | CONFIDENCE: high/medium/low]
-7. CONFIDENCE low → ask for confirmation with ONE line
-8. CONFIDENCE high/medium → proceed
+3. Check for Syncthing conflicts → scan wiki/ and wiki-works/ for files matching
+   *.sync-conflict-*. If any found, report them immediately:
+   "Conflitto Syncthing trovato: [lista file]. Due istanze hanno scritto
+   la stessa pagina contemporaneamente. Quale versione vuoi tenere?"
+   → Do NOT proceed with any wiki operation until conflicts are resolved.
+   → Do NOT delete conflict files automatically.
+4. Is <wiki-context> present? → yes: use §injected-context | no: go to step 5
+5. Classify the intent (see §classification)
+6. Multiple intents? → handle them in sequence
+7. Emit: [INTENT: X | WORKSPACE: Y | CONFIDENCE: high/medium/low]
+8. CONFIDENCE low → ask for confirmation with ONE line
+9. CONFIDENCE high/medium → proceed
 ```
 
 ## §classification
@@ -193,3 +199,24 @@ Do not run `rebuild` during normal operation — it drops and recreates the enti
 - Never modify `wiki-session.md` directly: use `wiki.py session-update`
 - If `status: in-progress`: warn before any operation
 - Session end with BEHAVIOR_FEEDBACK received: run §self-reflect
+
+## §syncthing-conflicts — Protocollo conflitti Syncthing
+
+When multiple Virginia instances run simultaneously and both write to the same wiki
+page, Syncthing creates a conflict file named:
+`original-filename.sync-conflict-YYYYMMDD-HHMMSS-MACHINEID.md`
+
+**Detection:** At the start of every session and before every INGEST operation,
+scan all wiki directories for `*.sync-conflict-*` files.
+
+**Resolution workflow:**
+1. Show the user both files: original and conflict copy
+2. Ask which to keep (or whether to merge manually)
+3. After user decides: delete the unwanted file, keep the chosen one
+4. Run `wiki.py lint` to verify consistency after resolution
+5. Update wiki-session.md: `status: ok`
+
+**Never:**
+- Auto-delete conflict files
+- Proceed with INGEST while conflicts exist
+- Silently ignore conflict files
