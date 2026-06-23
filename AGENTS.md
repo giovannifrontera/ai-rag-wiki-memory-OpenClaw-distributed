@@ -1,141 +1,71 @@
-# AGENTS.md — ai-longterm-wiki-memory-OpenClaw
+# AGENTS.md — ai-rag-wiki-memory-OpenClaw-distributed
 
-> ## ⛔ STOP — READ THIS BEFORE ANYTHING ELSE
+> ## ⛔ STOP — LEGGI PRIMA DI QUALSIASI AZIONE
 >
-> **Every session, before any action:**
-> 1. `Read wiki-session.md` — check current status
-> 2. `Read skills/wiki-core.md` — load the full protocol
+> Questo è un sistema distribuito. Le istruzioni variano in base alla macchina su cui sei.
 >
-> These are local files, not plugins. Use the **Read tool**, not a Skill/Tool call.
-> If you see `<wiki-briefing>` in your context, it already contains the summary —
-> but you must still Read skills/wiki-core.md for the full protocol.
+> **Prima di qualsiasi altra cosa: determina su quale macchina stai girando.**
 >
 > ---
 
-This repo provides a long-term wiki memory system for AI agents.
-It injects semantically relevant wiki pages into every prompt automatically.
+## Quale macchina sono?
 
-## Installation
-
-### OpenClaw agent
+Esegui questo controllo:
 
 ```bash
-py scripts/setup_openclaw.py --workspace /absolute/path/to/workspace
+# Qdrant gira localmente?
+curl http://localhost:6333/health 2>/dev/null && echo "SEI SUL SERVER" || echo "SEI SU UN CLIENT"
 ```
 
-If auto-detection fails: add `--config /path/to/openclaw/config.json`
+Poi leggi il file corretto:
 
-Restart the agent after installation.
+| Macchina | File da leggere |
+|----------|-----------------|
+| **Server** (Bazzite o macchina con Qdrant locale) | [`AGENTS-server.md`](AGENTS-server.md) |
+| **Client** (qualsiasi altra macchina) | [`AGENTS-client.md`](AGENTS-client.md) |
 
-## PDF ingestion — CRITICAL workflow
+---
 
-Text extraction uses **pdfplumber** (bundled in `wiki_pdf_watcher.py`).
+## Differenze chiave server vs client
 
-```bash
-wiki.py ingest-pdf --workspace <path> --file <path|url>
+| | Server | Client |
+|---|---|---|
+| Qdrant | `localhost:6333` | `<bazzite-tailscale>:6333` via Tailscale |
+| `wiki.py rebuild` | ✅ Esegui qui | ⛔ Evita (operazione pesante) |
+| Syncthing | Nodo primario | Riceve file da server |
+| `wiki.py ingest` | ✅ Sì | ✅ Sì (scrive file locali + vettori remoti) |
+| Migrazione LanceDB → Qdrant | Eseguita qui | Non applicabile |
+
+---
+
+## Precondizioni comuni (tutte le macchine)
+
+Prima di qualsiasi sessione:
+
+1. `Read wiki-session.md` — controlla `status`
+2. `Read skills/wiki-core.md` — carica il protocollo
+3. Verifica Qdrant raggiungibile (locale o remoto)
+4. Scansiona `*.sync-conflict-*` in `wiki/` e `wiki-works/` — se trovati, **fermati**
+5. Se `status ≠ ok` — avvisa l'utente prima di procedere
+
+---
+
+## Struttura repo
+
 ```
+scripts/
+├── wiki.py                       ← CLI unificata
+├── wiki_qdrant.py                ← ops Qdrant (sostituisce wiki_lancedb.py)
+├── wiki_context.py               ← hook pre-prompt
+├── migrate_lancedb_to_qdrant.py  ← migrazione one-shot (solo su server)
+└── ...
 
-This deposits extracted raw text into `wiki-works/<project>/raw/`.
+deploy/
+├── qdrant.service                ← systemd per il server
+├── syncthing-stignore            ← da copiare in workspace/.stignore
+└── setup-client.sh               ← setup automatico client
 
-**After `ingest-pdf`, the agent must:**
-1. Read each deposited file in `raw/`
-2. Write structured `.tmp` pages (see `skills/wiki-core.md §ingest`)
-3. Call `wiki.py ingest --workspace <path> --pages <file.tmp>`
-
-## process-raw vs ingest — DO NOT CONFUSE
-
-| Command | When to use |
-|---------|-------------|
-| `wiki.py ingest` | Always — agent writes `.tmp` pages, then calls this |
-| `wiki.py process-raw` | ONLY for bulk re-indexing of raw files already in `raw/` — does NOT create structured wiki pages |
-
-**Never use `process-raw` as a shortcut for the INGEST workflow.**
-
-## Architecture (v3) — three layers, one brain
-
-| Layer | Directory | Contents | Who writes |
-|-------|-----------|----------|------------|
-| **Domain knowledge** | `wiki-works/<topic>/` | Deep knowledge per topic: concepts, research, entities | INGEST workflow |
-| **Distilled knowledge** | `wiki/` | Cross-domain knowledge, promoted autonomously | Agent (autonomous) |
-| **Identity** | `wiki/identity/` | Values, style, learned behavioral patterns | Only `wiki.py self-reflect` |
-
-Promote a page from `wiki-works/` to `wiki/` autonomously when relevant in ≥2 topics and retrieved in ≥3 queries.
-
-## Behavioral feedback
-
-When the user corrects behavior:
-```bash
-wiki.py behavior-log --workspace <path> --event "<canonical phrase>"
+AGENTS-server.md                  ← istruzioni per la macchina server
+AGENTS-client.md                  ← istruzioni per le macchine client
+skills/wiki-core.md               ← protocollo agente (tutti leggono questo)
 ```
-At end of session, run autonomously if ≥1 correction received:
-```bash
-wiki.py self-reflect --workspace <path>
-```
-
-## Wiki context injection
-
-Every prompt arrives preceded by:
-```
-<wiki-context>
-Pre-loaded wiki context (top 3 pages by semantic relevance):
-### wiki/concepts/rag.md  [relevance: 0.91]
-[page content...]
-</wiki-context>
-```
-
-Use this directly. Do not re-run `wiki.py query` for the same prompt.
-If all relevance scores < 0.4 → wiki has no relevant knowledge, proceed normally.
-
-## Dashboard
-
-```bash
-wiki.py serve --workspace <path> [--no-auth]
-```
-
-Opens at `http://localhost:7331`. Tabs: **Graf** (page graph) and **Stats**.
-
-## First-time wiki setup
-
-### Workspace = repo directory (most common)
-
-`wiki.config.json` already exists with placeholder values. Run:
-
-```bash
-py scripts/wiki.py rebuild --workspace /absolute/path/to/this/repo
-```
-
-### Workspace = separate directory
-
-```bash
-mkdir -p /path/to/workspace/wiki /path/to/workspace/wiki-works /path/to/workspace/memory
-```
-
-`wiki.config.json` template (replace `<WORKSPACE>` with the absolute path):
-```json
-{
-  "workspace": "<WORKSPACE>",
-  "pdf_inbox": { "project_default": "ricerca" },
-  "projects": {
-    "ricerca": { "path": "wiki-works/ricerca", "keywords": [] }
-  },
-  "thresholds": {
-    "index_token_budget": 4000, "staleness_days": 90,
-    "similarity_merge": 0.95, "similarity_orphan": 0.50,
-    "synthesis_min_tokens": 300, "synthesis_min_sources": 2,
-    "chunk_size_tokens": 512, "chunk_overlap_tokens": 64,
-    "page_chunk_threshold_tokens": 1500, "quality_filter_min_score": 6,
-    "dedup_auto": 0.90, "dedup_warn": 0.75
-  },
-  "self_reflection": { "enabled": true, "correction_threshold": 3 },
-  "lancedb": { "path": "memory/lancedb", "embedding_model": "BAAI/bge-m3" },
-  "exclude_from_index": []
-}
-```
-
-Then:
-```bash
-py scripts/wiki.py rebuild --workspace /path/to/workspace
-```
-
-Available commands: `ingest`, `query`, `lint`, `index`, `rebuild`, `session-update`,
-`scan-inbox`, `ingest-pdf`, `process-raw`, `serve`, `behavior-log`, `self-reflect`

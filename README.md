@@ -12,7 +12,7 @@
 [![License](https://img.shields.io/badge/License-AGPL_3.0-blue?style=flat-square)](LICENSE)
 [![Last Commit](https://img.shields.io/github/last-commit/giovannifrontera/ai-rag-wiki-memory-OpenClaw-distributed?style=flat-square)](https://github.com/giovannifrontera/ai-rag-wiki-memory-OpenClaw-distributed/commits)
 
-[Problema](#-il-problema-distribuito) · [Architettura](#-architettura-distribuita) · [Funzionalità](#-funzionalità) · [Requisiti](#-requisiti) · [Installazione](#-installazione) · [OpenClaw](#-integrazione-openclaw) · [Migrazione](#-migrazione-da-lancedb) · [Ecosistema](#-ecosistema-ai-wiki)
+[Problema](#-il-problema-distribuito) · [Architettura](#-architettura-distribuita) · [Funzionalità](#-funzionalità) · [Requisiti](#-requisiti) · [Installazione](#-installazione) · [OpenClaw](#-integrazione-openclaw) · [Da singola macchina](#-da-singola-macchina-a-distribuito) · [Migrazione DB](#-migrazione-da-lancedb) · [Ecosistema](#-ecosistema-ai-wiki)
 
 </div>
 
@@ -288,6 +288,282 @@ Il plugin `wiki-context-plugin` intercetta ogni messaggio utente e, prima che ar
 3. L'agente risponde con contesto pertinente, senza dover invocare esplicitamente alcun tool
 
 Il wiki si aggiorna durante la conversazione tramite `wiki.py ingest` — la prossima sessione trova già le nuove conoscenze indicizzate.
+
+---
+
+## 🔀 Da Singola Macchina a Distribuito
+
+Hai già `ai-longterm-wiki-memory-OpenClaw` installato su una macchina e vuoi espandere a un setup multi-macchina? Questa sezione guida la transizione passo per passo.
+
+**Panoramica:** il tuo workspace Markdown (wiki, wiki-works, identity) rimane invariato — lo sincronizzerai con Syncthing. I vettori LanceDB vengono migrati a Qdrant una volta sola con uno script automatico.
+
+```
+Prima:   [Macchina A]  LanceDB locale + wiki locale
+
+Dopo:    [Bazzite]     Qdrant :6333  +  wiki (Syncthing primario)
+              ↕ Tailscale + Syncthing
+         [Client B]    → Qdrant remoto + wiki (Syncthing client)
+         [Client C]    → Qdrant remoto + wiki (Syncthing client)
+```
+
+---
+
+### Fase 1 — Prepara il server (Bazzite)
+
+Esegui questi passi sulla macchina che eseguirà Qdrant. Deve rimanere accesa quando le altre macchine lavorano.
+
+#### 1.1 — Installa Tailscale
+
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+# Nota il tuo hostname Tailscale (es. bazzite.tail.xxxxxxx.ts.net)
+tailscale ip -4
+```
+
+#### 1.2 — Installa e avvia Qdrant
+
+```bash
+mkdir -p ~/.qdrant ~/.qdrant/storage ~/.local/bin
+
+# Scarica il binario (controlla l'ultima versione su github.com/qdrant/qdrant)
+curl -L https://github.com/qdrant/qdrant/releases/latest/download/qdrant-x86_64-unknown-linux-musl.tar.gz \
+  | tar -xz -C ~/.local/bin
+
+# Installa il service systemd (dal file nel repo)
+sudo cp deploy/qdrant.service /etc/systemd/system/
+# Modifica il path se il tuo username non è 'giovanni'
+sudo nano /etc/systemd/system/qdrant.service
+
+sudo systemctl daemon-reload
+sudo systemctl enable qdrant
+sudo systemctl start qdrant
+
+# Verifica
+curl http://localhost:6333/health
+# {"title":"qdrant - vector search engine","version":"..."}
+```
+
+#### 1.3 — Installa Syncthing
+
+```bash
+# Fedora / Bazzite
+sudo dnf install syncthing
+
+# Avvia e abilita il service
+systemctl --user enable syncthing
+systemctl --user start syncthing
+
+# Interfaccia web Syncthing
+# http://localhost:8384
+```
+
+#### 1.4 — Clona il repo distribuito
+
+```bash
+cd ~/Documents/workspace   # o la directory che preferisci
+git clone https://github.com/giovannifrontera/ai-rag-wiki-memory-OpenClaw-distributed
+cd ai-rag-wiki-memory-OpenClaw-distributed
+pip install -r requirements.txt
+```
+
+#### 1.5 — Aggiorna wiki.config.json nel workspace esistente
+
+Il tuo workspace LanceDB (es. `~/.openclaw/workspace`) ha già un `wiki.config.json`. Devi aggiornarlo per usare Qdrant:
+
+```bash
+# Backup del config originale
+cp ~/.openclaw/workspace/wiki.config.json ~/.openclaw/workspace/wiki.config.json.bak
+
+# Apri e modifica manualmente, oppure usa python:
+python3 -c "
+import json, os
+
+path = os.path.expanduser('~/.openclaw/workspace/wiki.config.json')
+with open(path) as f:
+    cfg = json.load(f)
+
+# Rimuovi lancedb, aggiungi qdrant
+cfg.pop('lancedb', None)
+cfg['embedding_model'] = 'BAAI/bge-m3'
+cfg['qdrant'] = {'host': 'localhost', 'port': 6333, 'collection': 'wiki_pages'}
+cfg['workspace'] = os.path.expanduser('~/.openclaw/workspace')
+
+with open(path, 'w') as f:
+    json.dump(cfg, f, indent=2)
+print('Fatto:', cfg['qdrant'])
+"
+```
+
+#### 1.6 — Copia .stignore nel workspace
+
+```bash
+cp deploy/syncthing-stignore ~/.openclaw/workspace/.stignore
+```
+
+#### 1.7 — Aggiungi il workspace a Syncthing
+
+1. Apri `http://localhost:8384`
+2. Clicca **"Add Folder"**
+3. Imposta **Folder Path** = `~/.openclaw/workspace`
+4. Imposta **Folder ID** = `openclaw-workspace` (uguale su tutte le macchine!)
+5. **Non condividere ancora** — prima aggiungi i dispositivi client (Fase 2)
+
+---
+
+### Fase 2 — Migra i vettori LanceDB → Qdrant
+
+Questo passaggio trasferisce i vettori esistenti senza ricalcolare gli embedding.
+
+```bash
+cd ai-rag-wiki-memory-OpenClaw-distributed
+
+# Prima verifica (dry run) — nessuna scrittura
+python scripts/migrate_lancedb_to_qdrant.py \
+    --lancedb ~/.openclaw/workspace/memory/lancedb \
+    --config ~/.openclaw/workspace/wiki.config.json \
+    --dry-run
+# Output: "Trovati N chunk in LanceDB. Pagine uniche: M"
+
+# Migrazione reale
+python scripts/migrate_lancedb_to_qdrant.py \
+    --lancedb ~/.openclaw/workspace/memory/lancedb \
+    --config ~/.openclaw/workspace/wiki.config.json
+# Output: "  OK wiki/concepts/rag.md (3 chunk)"
+#         "  OK wiki-works/trading/analisi.md (7 chunk)"
+#         "Migrazione completata: N chunk da M pagine."
+
+# Verifica che i vettori siano arrivati
+curl http://localhost:6333/collections/wiki_pages
+# {"result":{"points_count":N,...}}   ← deve corrispondere al numero di chunk
+```
+
+#### 1.8 — Verifica che tutto funzioni
+
+```bash
+# Test: query semantica sul wiki esistente
+python scripts/wiki_context.py \
+    --workspace ~/.openclaw/workspace \
+    --q "test query" --k 3
+# Deve restituire <wiki-context>...</wiki-context> con pagine rilevanti
+
+# Aggiorna il plugin OpenClaw al nuovo repo
+python scripts/setup_openclaw.py --workspace ~/.openclaw/workspace
+```
+
+A questo punto il server è completamente operativo con Qdrant. LanceDB non è più usato — puoi rimuovere `memory/lancedb/` se vuoi liberare spazio (ma conserva il backup).
+
+---
+
+### Fase 3 — Configura ogni macchina client
+
+Ripeti questa fase per ogni client (Windows, altro Linux, ecc.).
+
+#### 3.1 — Installa Tailscale e connettiti alla rete
+
+```bash
+# Linux
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+
+# Windows
+winget install Tailscale.Tailscale
+# Accedi con lo stesso account usato su Bazzite
+
+# Verifica connettività con Bazzite
+ping <bazzite-tailscale-ip>
+curl http://<bazzite-tailscale-ip>:6333/health
+```
+
+#### 3.2 — Installa Syncthing
+
+```bash
+# Linux
+sudo dnf install syncthing   # Fedora
+sudo apt install syncthing   # Ubuntu/Debian
+
+# Windows
+winget install Syncthing.Syncthing
+
+# Avvia Syncthing
+syncthing   # oppure avvia come service
+# Interfaccia: http://localhost:8384
+```
+
+#### 3.3 — Aggiungi Bazzite come dispositivo Syncthing
+
+1. Su questa macchina: apri `http://localhost:8384` → **"Add Remote Device"**
+2. Inserisci il **Device ID** di Bazzite (visibile su Bazzite in Syncthing → "Show ID")
+3. Su Bazzite: accetta la richiesta di pairing che appare nell'interfaccia
+4. Su Bazzite: nella folder `openclaw-workspace`, abilita la condivisione con questo nuovo dispositivo
+5. Su questa macchina: accetta la folder condivisa → imposta il path locale (es. `~/.openclaw/workspace`)
+6. Attendi la sincronizzazione iniziale (può richiedere diversi minuti se il wiki è grande)
+
+#### 3.4 — Clona il repo e installa le dipendenze
+
+```bash
+git clone https://github.com/giovannifrontera/ai-rag-wiki-memory-OpenClaw-distributed
+cd ai-rag-wiki-memory-OpenClaw-distributed
+pip install -r requirements.txt
+```
+
+#### 3.5 — Configura il wiki.config.json del client
+
+Il `wiki.config.json` arriverà via Syncthing da Bazzite (con `host: localhost`). Devi cambiare l'host:
+
+```bash
+# Usa lo script automatico
+./deploy/setup-client.sh <bazzite-tailscale-hostname>
+# Es: ./deploy/setup-client.sh bazzite.tail.xxxxxxx.ts.net
+
+# Oppure manualmente
+python3 -c "
+import json, os
+path = os.path.expanduser('~/.openclaw/workspace/wiki.config.json')
+with open(path) as f:
+    cfg = json.load(f)
+cfg['qdrant']['host'] = '<bazzite-tailscale-hostname>'
+with open(path, 'w') as f:
+    json.dump(cfg, f, indent=2)
+print('host aggiornato:', cfg['qdrant']['host'])
+"
+```
+
+> **Nota:** `wiki.config.json` è in `.stignore` — le modifiche locali non vengono sovrascritte da Syncthing.
+
+#### 3.6 — Verifica connettività e installa il plugin OpenClaw
+
+```bash
+# Test connettività Qdrant remoto
+curl http://<bazzite-tailscale-hostname>:6333/health
+
+# Test query wiki
+python scripts/wiki_context.py \
+    --workspace ~/.openclaw/workspace \
+    --q "test" --k 3
+
+# Installa/aggiorna il plugin OpenClaw
+python scripts/setup_openclaw.py --workspace ~/.openclaw/workspace
+```
+
+Se `wiki_context.py` restituisce risultati, il client è operativo.
+
+---
+
+### Riepilogo
+
+| Passo | Dove | Comando chiave |
+|-------|------|----------------|
+| Installa Qdrant | Server | `systemctl start qdrant` |
+| Installa Syncthing | Tutti | `syncthing` |
+| Installa Tailscale | Tutti | `tailscale up` |
+| Clona repo distribuito | Tutti | `git clone ...` |
+| Aggiorna wiki.config.json | Server | Python snippet — `host: localhost` |
+| Migra vettori LanceDB → Qdrant | Server | `migrate_lancedb_to_qdrant.py` |
+| Condividi workspace Syncthing | Server | Interfaccia web Syncthing |
+| Aggiungi dispositivo Syncthing | Ogni client | Interfaccia web Syncthing |
+| Cambia host Qdrant in config | Ogni client | `setup-client.sh <hostname>` |
+| Installa plugin OpenClaw | Tutti | `setup_openclaw.py` |
 
 ---
 
