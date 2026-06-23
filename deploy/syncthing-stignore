@@ -1,0 +1,17 @@
+# Configurazioni locali della macchina — non sincronizzate
+openclaw.json
+agents/main/agent/auth-profiles.json
+agents/main/agent/auth-state.json
+models.json
+
+# Database vettoriale — gestito da Qdrant su Bazzite
+memory/lancedb/
+
+# File temporanei wiki
+*.tmp
+.wiki-lock
+
+# Artefatti Python
+__pycache__/
+*.pyc
+*.pyo

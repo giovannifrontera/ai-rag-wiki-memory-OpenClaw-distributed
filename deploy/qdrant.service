@@ -1,0 +1,14 @@
+[Unit]
+Description=Qdrant Vector Database
+After=network.target
+
+[Service]
+Type=simple
+User=giovanni
+WorkingDirectory=/home/giovanni/.qdrant
+ExecStart=/home/giovanni/.local/bin/qdrant
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
