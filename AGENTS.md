@@ -1,71 +1,71 @@
 # AGENTS.md — ai-rag-wiki-memory-OpenClaw-distributed
 
-> ## ⛔ STOP — LEGGI PRIMA DI QUALSIASI AZIONE
+> ## ⛔ STOP — READ THIS BEFORE ANY ACTION
 >
-> Questo è un sistema distribuito. Le istruzioni variano in base alla macchina su cui sei.
+> This is a distributed system. Instructions vary depending on which machine you are on.
 >
-> **Prima di qualsiasi altra cosa: determina su quale macchina stai girando.**
+> **Before anything else: determine which machine you are running on.**
 >
 > ---
 
-## Quale macchina sono?
+## Which machine am I on?
 
-Esegui questo controllo:
+Run this check:
 
 ```bash
-# Qdrant gira localmente?
-curl http://localhost:6333/health 2>/dev/null && echo "SEI SUL SERVER" || echo "SEI SU UN CLIENT"
+# Is Qdrant running locally?
+curl http://localhost:6333/health 2>/dev/null && echo "YOU ARE ON THE SERVER" || echo "YOU ARE ON A CLIENT"
 ```
 
-Poi leggi il file corretto:
+Then read the correct file:
 
-| Macchina | File da leggere |
-|----------|-----------------|
-| **Server** (macchina con Qdrant locale) | [`AGENTS-server.md`](AGENTS-server.md) |
-| **Client** (qualsiasi altra macchina) | [`AGENTS-client.md`](AGENTS-client.md) |
+| Machine | File to read |
+|---------|-------------|
+| **Server** (machine running local Qdrant) | [`AGENTS-server.md`](AGENTS-server.md) |
+| **Client** (any other machine) | [`AGENTS-client.md`](AGENTS-client.md) |
 
 ---
 
-## Differenze chiave server vs client
+## Key differences: server vs client
 
 | | Server | Client |
 |---|---|---|
 | Qdrant | `localhost:6333` | `<qdrant-server>:6333` via Tailscale |
-| `wiki.py rebuild` | ✅ Esegui qui | ⛔ Evita (operazione pesante) |
-| Syncthing | Nodo primario | Riceve file da server |
-| `wiki.py ingest` | ✅ Sì | ✅ Sì (scrive file locali + vettori remoti) |
-| Migrazione LanceDB → Qdrant | Eseguita qui | Non applicabile |
+| `wiki.py rebuild` | ✅ Run here | ⛔ Avoid (heavy operation) |
+| Syncthing | Primary node | Receives files from server |
+| `wiki.py ingest` | ✅ Yes | ✅ Yes (writes local files + remote vectors) |
+| LanceDB → Qdrant migration | Run here | Not applicable |
 
 ---
 
-## Precondizioni comuni (tutte le macchine)
+## Common preconditions (all machines)
 
-Prima di qualsiasi sessione:
+Before every session:
 
-1. `Read wiki-session.md` — controlla `status`
-2. `Read skills/wiki-core.md` — carica il protocollo
-3. Verifica Qdrant raggiungibile (locale o remoto)
-4. Scansiona `*.sync-conflict-*` in `wiki/` e `wiki-works/` — se trovati, **fermati**
-5. Se `status ≠ ok` — avvisa l'utente prima di procedere
+1. `Read wiki-session.md` — check `status`
+2. `Read skills/wiki-core.md` — load the full protocol
+3. Verify Qdrant is reachable (local or remote)
+4. Scan for `*.sync-conflict-*` in `wiki/` and `wiki-works/` — if found, **stop**
+5. If `status ≠ ok` — alert the user before proceeding
 
 ---
 
-## Struttura repo
+## Repo structure
 
 ```
 scripts/
-├── wiki.py                       ← CLI unificata
-├── wiki_qdrant.py                ← ops Qdrant (sostituisce wiki_lancedb.py)
-├── wiki_context.py               ← hook pre-prompt
-├── migrate_lancedb_to_qdrant.py  ← migrazione one-shot (solo su server)
+├── wiki.py                       ← unified CLI
+├── wiki_qdrant.py                ← Qdrant ops (replaces wiki_lancedb.py)
+├── wiki_context.py               ← pre-prompt hook
+├── migrate_lancedb_to_qdrant.py  ← one-shot migration (server only)
 └── ...
 
 deploy/
-├── qdrant.service                ← systemd per il server
-├── syncthing-stignore            ← da copiare in workspace/.stignore
-└── setup-client.sh               ← setup automatico client
+├── qdrant.service                ← systemd unit for the server
+├── syncthing-stignore            ← copy to workspace/.stignore
+└── setup-client.sh               ← automated client setup
 
-AGENTS-server.md                  ← istruzioni per la macchina server
-AGENTS-client.md                  ← istruzioni per le macchine client
-skills/wiki-core.md               ← protocollo agente (tutti leggono questo)
+AGENTS-server.md                  ← instructions for the server machine
+AGENTS-client.md                  ← instructions for client machines
+skills/wiki-core.md               ← agent protocol (all machines read this)
 ```

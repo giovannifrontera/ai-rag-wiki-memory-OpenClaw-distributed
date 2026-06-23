@@ -1,133 +1,133 @@
-# AGENTS-client.md — Macchina Client
+# AGENTS-client.md — Client Machine
 
-> ## ⛔ STOP — LEGGI PRIMA DI QUALSIASI AZIONE
+> ## ⛔ STOP — READ THIS BEFORE ANY ACTION
 >
-> **Ogni sessione, prima di qualsiasi azione:**
-> 1. `Read wiki-session.md` nel workspace — controlla lo status
-> 2. `Read skills/wiki-core.md` — carica il protocollo completo
-> 3. Verifica connettività Qdrant: `curl http://<qdrant-server>:6333/health`
-> 4. Verifica Syncthing sincronizzato (file recenti presenti in `wiki/`)
-> 5. Scansiona `wiki/` e `wiki-works/` per file `*.sync-conflict-*` — se trovati, **fermati e avvisa**
+> **Every session, before any action:**
+> 1. `Read wiki-session.md` in the workspace — check the status
+> 2. `Read skills/wiki-core.md` — load the full protocol
+> 3. Verify Qdrant connectivity: `curl http://<qdrant-server>:6333/health`
+> 4. Verify Syncthing is synced (recent files present in `wiki/`)
+> 5. Scan `wiki/` and `wiki-works/` for `*.sync-conflict-*` files — if found, **stop and alert**
 >
-> Questi sono file locali. Usa il tool **Read**, non una Skill o Tool call.
+> These are local files. Use the **Read** tool, not a Skill or Tool call.
 >
 > ---
 
-Questa è una **macchina client**: non esegue Qdrant localmente. Si connette al server server via Tailscale per le query vettoriali, e riceve i file wiki via Syncthing.
+This is a **client machine**: it does not run Qdrant locally. It connects to the server via Tailscale for vector queries, and receives wiki files via Syncthing.
 
 ---
 
-## Stato di salute — controlla prima di ogni sessione
+## Health check — run before every session
 
 ```bash
-# Qdrant raggiungibile via Tailscale?
+# Is Qdrant reachable via Tailscale?
 curl http://<qdrant-server>:6333/health
-# Atteso: {"title":"qdrant - vector search engine","version":"..."}
-# Se fallisce: verifica che Tailscale sia connesso e Qdrant sia in esecuzione su server
+# Expected: {"title":"qdrant - vector search engine","version":"..."}
+# If this fails: check that Tailscale is connected and Qdrant is running on the server
 
-# Tailscale connesso?
+# Is Tailscale connected?
 tailscale status
 
-# Syncthing: file recenti presenti?
+# Are recent Syncthing files present?
 ls -lt ~/.openclaw/workspace/wiki/ | head -5
-# I file devono essere aggiornati — se sono vecchi, Syncthing potrebbe non essere attivo
+# Files should be up to date — if they are old, Syncthing may not be running
 ```
 
-Se Qdrant non è raggiungibile:
-- Verifica `tailscale status` — sei connesso alla rete?
-- Verifica che Qdrant sia in esecuzione su server: chiedi all'utente di controllare `systemctl status qdrant`
-- **Non procedere** con ingest se Qdrant non risponde — i vettori non verrebbero scritti
+If Qdrant is not reachable:
+- Check `tailscale status` — are you connected to the network?
+- Verify Qdrant is running on the server: ask the user to check `systemctl status qdrant`
+- **Do not proceed** with ingest if Qdrant does not respond — vectors would not be written
 
 ---
 
-## Struttura workspace
+## Workspace structure
 
 ```
-~/.openclaw/workspace/          ← sincronizzato via Syncthing da server
-├── wiki.config.json            ← qdrant.host = "<qdrant-server>" (NON localhost)
-├── wiki-session.md             ← stato sessione corrente
-├── wiki/                       ← livello Distillato + Identity (ricevuto via Syncthing)
-│   └── identity/               ← solo wiki.py self-reflect scrive qui
-├── wiki-works/<topic>/         ← livello Dominio (sync bidirezionale Syncthing)
-└── .stignore                   ← regole esclusione Syncthing
+~/.openclaw/workspace/          ← synced via Syncthing from the server
+├── wiki.config.json            ← qdrant.host = "<qdrant-server>" (NOT localhost)
+├── wiki-session.md             ← current session state
+├── wiki/                       ← Distilled layer + Identity (received via Syncthing)
+│   └── identity/               ← only wiki.py self-reflect writes here
+├── wiki-works/<topic>/         ← Domain layer (bidirectional Syncthing sync)
+└── .stignore                   ← Syncthing exclusion rules
 ```
 
-> **Importante:** `wiki.config.json` su questa macchina deve avere `qdrant.host` impostato
-> al nome Tailscale di server, **non** `localhost`. Verifica con:
+> **Important:** `wiki.config.json` on this machine must have `qdrant.host` set to the server's
+> Tailscale hostname, **not** `localhost`. Verify with:
 > ```bash
 > python -c "import json; cfg=json.load(open('~/.openclaw/workspace/wiki.config.json'.replace('~', __import__('os').path.expanduser('~')))); print(cfg['qdrant']['host'])"
-> # Atteso: hostname del server (es. server.tail.xxxxx.ts.net), NON localhost
+> # Expected: server hostname (e.g. myserver.tail.xxxxxxx.ts.net), NOT localhost
 > ```
 
 ---
 
-## Comandi disponibili
+## Available commands
 
-I client eseguono gli stessi comandi del server, con due eccezioni:
+Clients run the same commands as the server, with one exception:
 
-| Comando | Client | Note |
-|---------|--------|------|
-| `ingest` | ✅ Sì | Scrive file Markdown localmente (Syncthing li propaga) + vettori su Qdrant remoto |
-| `query` | ✅ Sì | Query su Qdrant remoto via Tailscale |
-| `lint` | ✅ Sì (leggero) | Controlla consistenza file locali |
-| `index` | ✅ Sì | Genera index.md locale |
-| `serve` | ✅ Sì | Dashboard locale (legge Qdrant remoto) |
-| `ingest-pdf` | ✅ Sì | Estrae PDF localmente, file va in Syncthing |
-| `self-reflect` | ✅ Sì | Scrive in `wiki/identity/` (propagato da Syncthing) |
-| `rebuild` | ⛔ Evita | Operazione pesante — preferibilmente eseguita su server |
+| Command | Client | Notes |
+|---------|--------|-------|
+| `ingest` | ✅ Yes | Writes Markdown files locally (Syncthing propagates them) + vectors to remote Qdrant |
+| `query` | ✅ Yes | Queries remote Qdrant via Tailscale |
+| `lint` | ✅ Yes (lightweight) | Checks local file consistency |
+| `index` | ✅ Yes | Generates local index.md |
+| `serve` | ✅ Yes | Local dashboard (reads remote Qdrant) |
+| `ingest-pdf` | ✅ Yes | Extracts PDF locally, file goes to Syncthing |
+| `self-reflect` | ✅ Yes | Writes to `wiki/identity/` (propagated by Syncthing) |
+| `rebuild` | ⛔ Avoid | Heavy operation — run on the server instead |
 
-### Ingestione
+### Ingest
 
 ```bash
 python scripts/wiki.py ingest \
     --workspace ~/.openclaw/workspace \
-    --pages wiki-works/trading/concetti/nuovo.md.tmp \
-    --log "ingest | Nuovo concetto trading"
+    --pages wiki-works/research/concepts/new.md.tmp \
+    --log "ingest | New research concept"
 ```
 
-Il file Markdown viene scritto localmente; Syncthing lo propaga a server entro pochi secondi. I vettori vengono scritti su Qdrant via Tailscale.
+The Markdown file is written locally; Syncthing propagates it to the server within seconds. Vectors are written to Qdrant via Tailscale.
 
-### Query e contesto
+### Query and context
 
 ```bash
 python scripts/wiki_context.py \
     --workspace ~/.openclaw/workspace \
-    --q "domanda utente" --k 3
+    --q "user question" --k 3
 ```
 
 ---
 
-## Protocollo conflitti Syncthing
+## Syncthing conflict protocol
 
-I file `*.sync-conflict-*` si creano quando questa macchina e server (o un'altra macchina) modificano la stessa pagina wiki contemporaneamente.
+`*.sync-conflict-*` files are created when this machine and the server (or another machine) modify the same wiki page at the same time.
 
-Se trovi file `*.sync-conflict-*` in `wiki/` o `wiki-works/`:
+If you find `*.sync-conflict-*` files in `wiki/` or `wiki-works/`:
 
-1. **Non procedere** con nessuna operazione wiki
-2. Avvisa l'utente: "Conflitto Syncthing trovato: [lista file]. Due istanze hanno scritto la stessa pagina contemporaneamente. Quale versione vuoi tenere?"
-3. Mostra il contenuto di entrambi i file
-4. Aspetta la decisione dell'utente
-5. Dopo la risoluzione: elimina il file scartato, esegui `wiki.py lint`
-6. Aggiorna `wiki-session.md` con `status: ok`
+1. **Do not proceed** with any wiki operation
+2. Alert the user: "Syncthing conflict found: [file list]. Two instances wrote to the same page simultaneously. Which version do you want to keep?"
+3. Show the content of both files
+4. Wait for the user's decision
+5. After resolution: delete the discarded file, run `wiki.py lint`
+6. Update `wiki-session.md` with `status: ok`
 
-Non cancellare mai file di conflitto automaticamente.
+Never delete conflict files automatically.
 
 ---
 
 ## Wiki context injection
 
-Ogni prompt arriva preceduto da:
+Every prompt arrives preceded by:
 
 ```
 <wiki-context>
-Contesto wiki pre-caricato (top 3 pagine per rilevanza semantica):
-### wiki/concepts/rag.md  [rilevanza: 0.91]
-[contenuto pagina...]
+Pre-loaded wiki context (top 3 pages by semantic relevance):
+### wiki/concepts/rag.md  [relevance: 0.91]
+[page content...]
 </wiki-context>
 ```
 
-Usa questo direttamente. Non rieseguire `wiki.py query` per lo stesso prompt.
-Se tutti i punteggi di rilevanza < 0.4 → il wiki non ha conoscenza rilevante, procedi normalmente.
+Use this directly. Do not re-run `wiki.py query` for the same prompt.
+If all relevance scores < 0.4 → the wiki has no relevant knowledge, proceed normally.
 
 ---
 
@@ -137,25 +137,25 @@ Se tutti i punteggi di rilevanza < 0.4 → il wiki non ha conoscenza rilevante, 
 python scripts/wiki.py ingest-pdf --workspace <path> --file <path|url>
 ```
 
-Il testo estratto viene depositato in `wiki-works/<progetto>/raw/` localmente. Syncthing lo propaga. Poi segui il workflow standard:
+The extracted text is deposited in `wiki-works/<project>/raw/` locally. Syncthing propagates it. Then follow the standard workflow:
 
-1. Leggi ogni file in `raw/`
-2. Scrivi pagine `.tmp` strutturate
-3. Chiama `wiki.py ingest`
-
----
-
-## Architettura — tre livelli, un cervello
-
-| Livello | Directory | Contenuti | Chi scrive |
-|---------|-----------|-----------|------------|
-| **Dominio** | `wiki-works/<topic>/` | Conoscenza profonda per topic | Workflow INGEST |
-| **Distillato** | `wiki/` | Conoscenza cross-domain, promossa autonomamente | Agente (autonomo) |
-| **Identità** | `wiki/identity/` | Valori, stile, pattern comportamentali | Solo `wiki.py self-reflect` |
+1. Read every file in `raw/`
+2. Write structured `.tmp` pages
+3. Call `wiki.py ingest`
 
 ---
 
-## Comandi (riferimento)
+## Architecture — three layers, one brain
+
+| Layer | Directory | Contents | Who writes |
+|-------|-----------|----------|------------|
+| **Domain** | `wiki-works/<topic>/` | Deep topic-specific knowledge | INGEST workflow |
+| **Distilled** | `wiki/` | Cross-domain knowledge, autonomously promoted | Agent (autonomous) |
+| **Identity** | `wiki/identity/` | Values, style, behavioural patterns | Only `wiki.py self-reflect` |
+
+---
+
+## Command reference
 
 ```
 wiki.py ingest         --workspace <path> --pages <p1.tmp,...> --log <str>
@@ -165,7 +165,7 @@ wiki.py index          --workspace <path>
 wiki.py scan-inbox     --workspace <path>
 wiki.py ingest-pdf     --workspace <path> --file <path|url>
 wiki.py serve          --workspace <path> [--port 7331] [--no-auth]
-wiki.py behavior-log   --workspace <path> --event "<correzione>"
+wiki.py behavior-log   --workspace <path> --event "<correction>"
 wiki.py self-reflect   --workspace <path>
 
 wiki_context.py        --workspace <path> --q <string> [--k 3] [--max-chars 600]

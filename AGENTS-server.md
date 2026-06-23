@@ -1,115 +1,115 @@
-# AGENTS-server.md — Macchina Server
+# AGENTS-server.md — Server Machine
 
-> ## ⛔ STOP — LEGGI PRIMA DI QUALSIASI AZIONE
+> ## ⛔ STOP — READ THIS BEFORE ANY ACTION
 >
-> **Ogni sessione, prima di qualsiasi azione:**
-> 1. `Read wiki-session.md` nel workspace — controlla lo status
-> 2. `Read skills/wiki-core.md` — carica il protocollo completo
-> 3. Verifica che Qdrant sia attivo: `curl http://localhost:6333/health`
-> 4. Scansiona `wiki/` e `wiki-works/` per file `*.sync-conflict-*` — se trovati, **fermati e avvisa**
+> **Every session, before any action:**
+> 1. `Read wiki-session.md` in the workspace — check the status
+> 2. `Read skills/wiki-core.md` — load the full protocol
+> 3. Verify Qdrant is running: `curl http://localhost:6333/health`
+> 4. Scan `wiki/` and `wiki-works/` for `*.sync-conflict-*` files — if found, **stop and alert the user**
 >
-> Questi sono file locali. Usa il tool **Read**, non una Skill o Tool call.
+> These are local files. Use the **Read** tool, not a Skill or Tool call.
 >
 > ---
 
-Questa è la **macchina server**: esegue Qdrant, gestisce il DB vettoriale, ed è il nodo Syncthing primario. I client si connettono a Qdrant via Tailscale.
+This is the **server machine**: it runs Qdrant, manages the vector database, and is the primary Syncthing node. Clients connect to Qdrant via Tailscale.
 
 ---
 
-## Stato di salute — controlla prima di ogni sessione
+## Health check — run before every session
 
 ```bash
-# Qdrant attivo?
+# Is Qdrant running?
 curl http://localhost:6333/health
-# Atteso: {"title":"qdrant - vector search engine","version":"..."}
+# Expected: {"title":"qdrant - vector search engine","version":"..."}
 
-# Collezione presente?
+# Is the collection present?
 curl http://localhost:6333/collections/wiki_pages
-# Atteso: {"result":{"points_count":N,...}}
+# Expected: {"result":{"points_count":N,...}}
 
-# Syncthing attivo?
-curl http://localhost:8384/rest/system/ping -H "X-API-Key: <tua-api-key>"
+# Is Syncthing running?
+curl http://localhost:8384/rest/system/ping -H "X-API-Key: <your-api-key>"
 
-# Service Qdrant status
+# Qdrant service status
 systemctl status qdrant
 ```
 
-Se Qdrant non risponde:
+If Qdrant does not respond:
 ```bash
 sudo systemctl start qdrant
 sudo systemctl status qdrant
-# Controlla i log se il service non parte
+# Check logs if the service fails to start
 journalctl -u qdrant -n 50
 ```
 
 ---
 
-## Struttura workspace
+## Workspace structure
 
 ```
 ~/.openclaw/workspace/
-├── wiki.config.json          ← qdrant.host = "localhost" (server usa localhost)
-├── wiki-session.md           ← stato sessione corrente
-├── wiki/                     ← livello Distillato + Identity (sync Syncthing)
-│   └── identity/             ← solo wiki.py self-reflect scrive qui
-├── wiki-works/<topic>/       ← livello Dominio (sync Syncthing)
-└── .stignore                 ← regole esclusione Syncthing
+├── wiki.config.json          ← qdrant.host = "localhost" (server uses localhost)
+├── wiki-session.md           ← current session state
+├── wiki/                     ← Distilled layer + Identity (Syncthing sync)
+│   └── identity/             ← only wiki.py self-reflect writes here
+├── wiki-works/<topic>/       ← Domain layer (Syncthing sync)
+└── .stignore                 ← Syncthing exclusion rules
 ```
 
-Il DB vettoriale **non è nel workspace** — vive in Qdrant su `localhost:6333`.
+The vector database is **not in the workspace** — it lives in Qdrant at `localhost:6333`.
 
 ---
 
-## Comandi disponibili
+## Available commands
 
-### Ingestione
+### Ingest
 
 ```bash
-# Ingestione standard (da .tmp scritti dall'agente)
+# Standard ingest (from .tmp files written by the agent)
 python scripts/wiki.py ingest \
     --workspace ~/.openclaw/workspace \
-    --pages wiki-works/trading/concetti/nuovo.md.tmp \
-    --log "ingest | Nuovo concetto trading"
+    --pages wiki-works/research/concepts/new-concept.md.tmp \
+    --log "ingest | New research concept"
 
-# Ingestione PDF
+# PDF ingest
 python scripts/wiki.py ingest-pdf \
     --workspace ~/.openclaw/workspace \
-    --file /path/al/documento.pdf
+    --file /path/to/document.pdf
 
-# Scansione PDF inbox
+# Scan PDF inbox
 python scripts/wiki.py scan-inbox --workspace ~/.openclaw/workspace
 ```
 
-### Query e contesto
+### Query and context
 
 ```bash
-# Ricerca semantica manuale
+# Manual semantic search
 python scripts/wiki.py query \
     --workspace ~/.openclaw/workspace \
-    --q "rituale di purificazione" --k 5
+    --q "purification ritual" --k 5
 
-# Iniezione contesto pre-prompt (usata automaticamente dal plugin)
+# Pre-prompt context injection (used automatically by the plugin)
 python scripts/wiki_context.py \
     --workspace ~/.openclaw/workspace \
-    --q "domanda utente" --k 3
+    --q "user question" --k 3
 ```
 
-### Manutenzione (preferibilmente su server)
+### Maintenance (preferred on server)
 
 ```bash
-# Lint — rileva e ripara inconsistenze
+# Lint — detect and repair inconsistencies
 python scripts/wiki.py lint --workspace ~/.openclaw/workspace
 python scripts/wiki.py lint --workspace ~/.openclaw/workspace --full
 
-# Rebuild — riscrive TUTTO il DB vettoriale da zero (operazione pesante)
-# Esegui SOLO su server, mai su client
+# Rebuild — rewrites the ENTIRE vector DB from scratch (heavy operation)
+# Run ONLY on server, never on clients
 python scripts/wiki.py rebuild --workspace ~/.openclaw/workspace
 
-# Indice token-budget
+# Token-budget index
 python scripts/wiki.py index --workspace ~/.openclaw/workspace
 ```
 
-### Dashboard web
+### Web dashboard
 
 ```bash
 python scripts/wiki.py serve \
@@ -118,95 +118,95 @@ python scripts/wiki.py serve \
 # http://localhost:7331
 ```
 
-### Self-reflection comportamentale
+### Behavioural self-reflection
 
 ```bash
-# Loggare una correzione utente
+# Log a user correction
 python scripts/wiki.py behavior-log \
     --workspace ~/.openclaw/workspace \
-    --event "usare sempre il vouv in risposte formali"
+    --event "always use formal address in formal replies"
 
-# Self-reflect (esegui a fine sessione se ≥1 correzione ricevuta)
+# Self-reflect (run at end of session if ≥1 correction received)
 python scripts/wiki.py self-reflect --workspace ~/.openclaw/workspace
 ```
 
 ---
 
-## Protocollo conflitti Syncthing
+## Syncthing conflict protocol
 
-Se trovi file `*.sync-conflict-*` in `wiki/` o `wiki-works/`:
+If you find `*.sync-conflict-*` files in `wiki/` or `wiki-works/`:
 
-1. **Non procedere** con nessuna operazione wiki
-2. Avvisa l'utente: "Conflitto Syncthing trovato: [lista file]. Due istanze hanno scritto la stessa pagina contemporaneamente. Quale versione vuoi tenere?"
-3. Mostra il contenuto di entrambi i file
-4. Aspetta la decisione dell'utente
-5. Dopo la risoluzione: elimina il file scartato, esegui `wiki.py lint`
-6. Aggiorna `wiki-session.md` con `status: ok`
+1. **Do not proceed** with any wiki operation
+2. Alert the user: "Syncthing conflict found: [file list]. Two instances wrote to the same page simultaneously. Which version do you want to keep?"
+3. Show the content of both files
+4. Wait for the user's decision
+5. After resolution: delete the discarded file, run `wiki.py lint`
+6. Update `wiki-session.md` with `status: ok`
 
-Non cancellare mai file di conflitto automaticamente.
+Never delete conflict files automatically.
 
 ---
 
 ## Wiki context injection
 
-Ogni prompt arriva preceduto da:
+Every prompt arrives preceded by:
 
 ```
 <wiki-context>
-Contesto wiki pre-caricato (top 3 pagine per rilevanza semantica):
-### wiki/concepts/rag.md  [rilevanza: 0.91]
-[contenuto pagina...]
+Pre-loaded wiki context (top 3 pages by semantic relevance):
+### wiki/concepts/rag.md  [relevance: 0.91]
+[page content...]
 </wiki-context>
 ```
 
-Usa questo direttamente. Non rieseguire `wiki.py query` per lo stesso prompt.
-Se tutti i punteggi di rilevanza < 0.4 → il wiki non ha conoscenza rilevante, procedi normalmente.
+Use this directly. Do not re-run `wiki.py query` for the same prompt.
+If all relevance scores < 0.4 → the wiki has no relevant knowledge, proceed normally.
 
 ---
 
-## PDF ingestion — workflow obbligatorio
+## PDF ingestion — mandatory workflow
 
 ```bash
 python scripts/wiki.py ingest-pdf --workspace <path> --file <path|url>
 ```
 
-Questo deposita il testo estratto in `wiki-works/<progetto>/raw/`.
+This deposits the extracted text in `wiki-works/<project>/raw/`.
 
-**Dopo `ingest-pdf`, l'agente deve:**
-1. Leggere ogni file depositato in `raw/`
-2. Scrivere pagine `.tmp` strutturate (vedi `skills/wiki-core.md §ingest`)
-3. Chiamare `wiki.py ingest --workspace <path> --pages <file.tmp>`
+**After `ingest-pdf`, the agent must:**
+1. Read every file deposited in `raw/`
+2. Write structured `.tmp` pages (see `skills/wiki-core.md §ingest`)
+3. Call `wiki.py ingest --workspace <path> --pages <file.tmp>`
 
-Non usare mai `process-raw` come scorciatoia per il workflow INGEST.
-
----
-
-## Architettura — tre livelli, un cervello
-
-| Livello | Directory | Contenuti | Chi scrive |
-|---------|-----------|-----------|------------|
-| **Dominio** | `wiki-works/<topic>/` | Conoscenza profonda per topic | Workflow INGEST |
-| **Distillato** | `wiki/` | Conoscenza cross-domain, promossa autonomamente | Agente (autonomo) |
-| **Identità** | `wiki/identity/` | Valori, stile, pattern comportamentali | Solo `wiki.py self-reflect` |
-
-Promuovi una pagina da `wiki-works/` a `wiki/` autonomamente quando è rilevante in ≥2 topic e recuperata in ≥3 query.
+Never use `process-raw` as a shortcut for the INGEST workflow.
 
 ---
 
-## Comandi disponibili (riferimento completo)
+## Architecture — three layers, one brain
+
+| Layer | Directory | Contents | Who writes |
+|-------|-----------|----------|------------|
+| **Domain** | `wiki-works/<topic>/` | Deep topic-specific knowledge | INGEST workflow |
+| **Distilled** | `wiki/` | Cross-domain knowledge, autonomously promoted | Agent (autonomous) |
+| **Identity** | `wiki/identity/` | Values, style, behavioural patterns | Only `wiki.py self-reflect` |
+
+Promote a page from `wiki-works/` to `wiki/` autonomously when it is relevant in ≥2 topics and retrieved in ≥3 queries.
+
+---
+
+## Command reference (complete)
 
 ```
 wiki.py ingest         --workspace <path> --pages <p1.tmp,...> --log <str>
 wiki.py query          --workspace <path> --q <string> [--k 5]
 wiki.py lint           --workspace <path> [--full]
 wiki.py index          --workspace <path>
-wiki.py rebuild        --workspace <path>          ← SOLO su server
+wiki.py rebuild        --workspace <path>          ← SERVER ONLY
 wiki.py scan-inbox     --workspace <path>
 wiki.py ingest-pdf     --workspace <path> --file <path|url>
 wiki.py serve          --workspace <path> [--port 7331] [--no-auth]
-wiki.py behavior-log   --workspace <path> --event "<correzione>"
+wiki.py behavior-log   --workspace <path> --event "<correction>"
 wiki.py self-reflect   --workspace <path>
-wiki.py session-update --workspace <path> --op <tipo> --status <ok|failed|...>
+wiki.py session-update --workspace <path> --op <type> --status <ok|failed|...>
 
 wiki_context.py        --workspace <path> --q <string> [--k 3] [--max-chars 600]
 migrate_lancedb_to_qdrant.py --lancedb <path> --config <path> [--dry-run]

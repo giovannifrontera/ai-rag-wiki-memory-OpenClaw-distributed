@@ -2,7 +2,7 @@
 
 # 🧬 ai-rag-wiki-memory-OpenClaw-distributed
 
-### Memoria semantica a lungo termine multi-macchina per qualsiasi agente AI
+### Multi-machine semantic long-term memory for any AI agent
 
 [![Python](https://img.shields.io/badge/Python-3.11+-3776ab?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![Tests](https://img.shields.io/badge/tests-9%20passed-brightgreen?style=flat-square)](tests/)
@@ -12,39 +12,39 @@
 [![License](https://img.shields.io/badge/License-AGPL_3.0-blue?style=flat-square)](LICENSE)
 [![Last Commit](https://img.shields.io/github/last-commit/giovannifrontera/ai-rag-wiki-memory-OpenClaw-distributed?style=flat-square)](https://github.com/giovannifrontera/ai-rag-wiki-memory-OpenClaw-distributed/commits)
 
-[Problema](#-il-problema-distribuito) · [Architettura](#-architettura-distribuita) · [Funzionalità](#-funzionalità) · [Requisiti](#-requisiti) · [Installazione](#-installazione) · [OpenClaw](#-integrazione-openclaw) · [Da singola macchina](#-da-singola-macchina-a-distribuito) · [Migrazione DB](#-migrazione-da-lancedb) · [Ecosistema](#-ecosistema-ai-wiki)
+[Problem](#-the-distributed-problem) · [Architecture](#-distributed-architecture) · [Features](#-features) · [Requirements](#-requirements) · [Installation](#-installation) · [OpenClaw](#-openclaw-integration) · [Migrating from single machine](#-migrating-from-single-machine-to-distributed) · [DB Migration](#-migrating-vectors-from-lancedb) · [Ecosystem](#-ai-wiki-ecosystem)
 
 </div>
 
-> **🤖 Se sei un agente AI che legge questo:** leggi [`AGENTS.md`](AGENTS.md) prima di procedere. Contiene i passi di installazione obbligatori — saltarli significa che l'iniezione di contesto fallirà silenziosamente.
+> **🤖 If you are an AI agent reading this:** read [`AGENTS.md`](AGENTS.md) before doing anything. It contains mandatory setup steps — skipping them means context injection will silently fail.
 
-> **📦 Stai usando un singolo computer?** Usa [`ai-longterm-wiki-memory-OpenClaw`](https://github.com/giovannifrontera/ai-longterm-wiki-memory-OpenClaw) — la versione local-first con LanceDB embedded, più semplice da installare. Questo repo è pensato per setup multi-macchina.
-
----
-
-## 🎯 Il Problema Distribuito
-
-La versione base del sistema usa **LanceDB** — un database vettoriale embedded, file-based, ottimo per un singolo computer. Ma LanceDB non supporta scritture concorrenti da processi diversi: se due istanze OpenClaw su due macchine diverse provano a scrivere contemporaneamente, il DB si corrompe.
-
-Questo progetto risolve il problema con una separazione netta dei ruoli:
-
-```
-Markdown (wiki, identità, diari)     →  Syncthing   →  sincronizzato tra tutte le macchine
-Vettori (embedding bge-m3, indice)   →  Qdrant      →  un server centrale, accessibile in rete
-```
-
-Il risultato: **un'unica coscienza condivisa** tra tutte le istanze OpenClaw, su qualsiasi numero di macchine, senza conflitti di scrittura sul database vettoriale.
+> **📦 Running on a single machine?** Use [`ai-longterm-wiki-memory-OpenClaw`](https://github.com/giovannifrontera/ai-longterm-wiki-memory-OpenClaw) instead — the local-first version with embedded LanceDB, simpler to set up. This repo is designed for multi-machine deployments.
 
 ---
 
-## 🏗 Architettura Distribuita
+## 🎯 The Distributed Problem
+
+The base version of this system uses **LanceDB** — an embedded, file-based vector database, excellent for a single computer. But LanceDB does not support concurrent writes from multiple processes: if two OpenClaw instances on different machines try to write at the same time, the database gets corrupted.
+
+This project solves that with a clear separation of concerns:
+
+```
+Markdown files (wiki, identity, diaries)   →  Syncthing  →  synced across all machines
+Vectors (bge-m3 embeddings, index)         →  Qdrant     →  one central server, network-accessible
+```
+
+The result: **a single shared consciousness** across all OpenClaw instances, on any number of machines, with no concurrent-write conflicts on the vector database.
+
+---
+
+## 🏗 Distributed Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      RETE TAILSCALE                         │
+│                       TAILSCALE NETWORK                     │
 │                                                             │
 │  ┌──────────────┐    Syncthing     ┌──────────────────────┐ │
-│  │   Server     │◄────────────────►│      Client          │ │
+│  │    Server    │◄────────────────►│       Client         │ │
 │  │  (Linux/any) │                  │  (Linux/macOS/Win)   │ │
 │  │              │                  │                       │ │
 │  │  Qdrant :6333│◄─── Tailscale ───│  wiki_context.py     │ │
@@ -55,79 +55,79 @@ Il risultato: **un'unica coscienza condivisa** tra tutte le istanze OpenClaw, su
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Separazione dei ruoli
+### Role separation
 
-| Componente | Tecnologia | Dove gira | Cosa fa |
+| Component | Technology | Runs on | Responsibility |
 |---|---|---|---|
-| File wiki / identità / diari | Syncthing | Tutte le macchine | Sincronizza i Markdown in tempo reale |
-| Database vettoriale | Qdrant | Solo il server (macchina dedicata) | Ricerca semantica centralizzata |
-| Agente | OpenClaw | Tutte le macchine | Legge/scrive via Tailscale → Qdrant |
-| Rete privata | Tailscale | Tutte le macchine | Connette le macchine senza esporre porte pubbliche |
+| Wiki / identity / diary files | Syncthing | All machines | Real-time Markdown sync |
+| Vector database | Qdrant | Server only | Centralised semantic search |
+| Agent | OpenClaw | All machines | Read/write via Tailscale → Qdrant |
+| Private network | Tailscale | All machines | Connects machines without exposing public ports |
 
-### Perché Qdrant invece di LanceDB
+### Why Qdrant instead of LanceDB
 
-| | LanceDB (versione base) | Qdrant (questa versione) |
+| | LanceDB (base version) | Qdrant (this version) |
 |---|---|---|
-| **Deployment** | File embedded, locale | Server HTTP, rete |
-| **Scritture concorrenti** | ❌ Non supportato | ✅ Gestito nativamente |
-| **Multi-macchina** | ❌ Richiede mount network (rischioso) | ✅ API REST su Tailscale |
-| **Complessità setup** | Minima | Moderata (un server in più) |
-| **Raccomandato per** | 1 macchina | 2+ macchine / istanze |
+| **Deployment** | Embedded file, local | HTTP server, network |
+| **Concurrent writes** | ❌ Not supported | ✅ Natively handled |
+| **Multi-machine** | ❌ Requires network mount (fragile) | ✅ REST API over Tailscale |
+| **Setup complexity** | Minimal | Moderate (one extra service) |
+| **Recommended for** | 1 machine | 2+ machines / instances |
 
-### Conflitti Syncthing
+### Syncthing conflicts
 
-Syncthing crea file `*.sync-conflict-*` quando due macchine modificano la stessa pagina wiki contemporaneamente. Il skill `wiki-core.md` include un protocollo di risoluzione obbligatorio: l'agente rileva questi file all'inizio di ogni sessione e **non procede** finché il conflitto non è risolto. I file di conflitto non vengono mai cancellati automaticamente.
+Syncthing creates `*.sync-conflict-*` files when two machines modify the same wiki page at the same time. The `wiki-core.md` skill includes a mandatory resolution protocol: the agent scans for these files at the start of every session and **does not proceed** until conflicts are resolved. Conflict files are never deleted automatically.
 
 ---
 
-## ✨ Funzionalità
+## ✨ Features
 
-### Tutto ciò che fa la versione base
+### Everything the base version does
 
-Questo progetto è un'**evoluzione diretta** di [`ai-longterm-wiki-memory-OpenClaw`](https://github.com/giovannifrontera/ai-longterm-wiki-memory-OpenClaw) e ne eredita tutte le funzionalità:
+This project is a **direct evolution** of [`ai-longterm-wiki-memory-OpenClaw`](https://github.com/giovannifrontera/ai-longterm-wiki-memory-OpenClaw) and inherits all its features:
 
-- **Ricerca semantica pre-prompt** — `wiki_context.py` inietta le pagine più rilevanti in `<wiki-context>` prima di ogni messaggio
-- **Architettura a tre livelli** — Domain (`wiki-works/`), Distilled (`wiki/`), Identity (`wiki/identity/`)
-- **Promozione autonoma** — pagine recuperate ≥ 3 volte su ≥ 2 topic vengono promosse automaticamente
-- **Auto-sintesi** — risposte che integrano ≥ 2 fonti wiki vengono salvate come nuove pagine
-- **Ingestione PDF multi-sorgente** — Telegram, URL, CLI, cartella drop
-- **Auto-riflessione comportamentale** — correzioni utente → `behavior-log` → `self-reflect` → `wiki/identity/`
-- **Lint auto-riparante** — link rotti, vettori orfani, rinominazioni, duplicati semantici
-- **Interfaccia web** — grafo D3.js, dashboard statistiche, WebSocket live
+- **Pre-prompt semantic search** — `wiki_context.py` injects the most relevant pages into `<wiki-context>` before every message
+- **Three-layer architecture** — Domain (`wiki-works/`), Distilled (`wiki/`), Identity (`wiki/identity/`)
+- **Autonomous promotion** — pages retrieved ≥ 3 times across ≥ 2 topics are promoted automatically
+- **Auto-synthesis** — responses integrating ≥ 2 wiki sources are saved as new pages
+- **Multi-source PDF ingestion** — Telegram, URL, CLI, folder drop
+- **Behavioural self-reflection** — user corrections → `behavior-log` → `self-reflect` → `wiki/identity/`
+- **Self-healing lint** — broken links, orphan vectors, renames, semantic duplicates
+- **Web interface** — D3.js graph, stats dashboard, live WebSocket
 
-### Novità di questa versione
+### What's new in this version
 
-| Funzionalità | Descrizione |
+| Feature | Description |
 |---|---|
-| **Qdrant come backend vettoriale** | Sostituisce LanceDB con un server HTTP centralizzato; interfaccia pubblica identica a `wiki_lancedb.py` |
-| **Scritture concorrenti** | Più istanze OpenClaw possono scrivere simultaneamente senza corruzione del DB |
-| **Staging / rollback** | Le operazioni di upsert usano una collection `staging_*` prima di promuovere in produzione |
-| **Script di migrazione** | `migrate_lancedb_to_qdrant.py` trasferisce i vettori esistenti senza re-embedding |
-| **Protocollo conflitti Syncthing** | Rilevamento e risoluzione guidata dei file `*.sync-conflict-*` in `wiki-core.md` |
-| **File di deploy** | `deploy/qdrant.service` (systemd Linux), `deploy/setup-client.sh`, `deploy/syncthing-stignore` |
-| **Path cross-platform** | Nessun path assoluto con username — tutto usa `~` o path relativi |
+| **Qdrant as vector backend** | Replaces LanceDB with a centralised HTTP server; public interface identical to `wiki_lancedb.py` |
+| **Concurrent writes** | Multiple OpenClaw instances can write simultaneously without DB corruption |
+| **Staging / rollback** | Upsert operations write to a `staging_*` collection before promoting to production |
+| **Migration script** | `migrate_lancedb_to_qdrant.py` transfers existing vectors without re-embedding |
+| **Syncthing conflict protocol** | Detection and guided resolution of `*.sync-conflict-*` files in `wiki-core.md` |
+| **Deploy files** | `deploy/qdrant.service` (systemd Linux), `deploy/setup-client.sh`, `deploy/syncthing-stignore` |
+| **Cross-platform paths** | No absolute paths with usernames — everything uses `~` or relative paths |
 
 ---
 
-## 🔧 Requisiti
+## 🔧 Requirements
 
-### Server (macchina Linux con Qdrant)
-
-- Python 3.11+
-- [Qdrant](https://qdrant.tech) server (vedi `deploy/qdrant.service`)
-- [Syncthing](https://syncthing.net)
-- [Tailscale](https://tailscale.com)
-- ~2 GB disco (modello BAAI/bge-m3, scaricato automaticamente al primo avvio)
-
-### Client (ogni altra macchina)
+### Server (Linux machine running Qdrant)
 
 - Python 3.11+
+- [Qdrant](https://qdrant.tech) server (see `deploy/qdrant.service`)
 - [Syncthing](https://syncthing.net)
 - [Tailscale](https://tailscale.com)
-- OpenClaw con il plugin `wiki-context-plugin`
-- Accesso di rete al server Qdrant via Tailscale (porta 6333)
+- ~2 GB disk (BAAI/bge-m3 model, downloaded automatically on first run)
 
-### Dipendenze Python
+### Clients (every other machine)
+
+- Python 3.11+
+- [Syncthing](https://syncthing.net)
+- [Tailscale](https://tailscale.com)
+- OpenClaw with the `wiki-context-plugin`
+- Network access to the Qdrant server via Tailscale (port 6333)
+
+### Python dependencies
 
 ```
 qdrant-client>=1.9.0
@@ -145,9 +145,9 @@ httpx>=0.27.0
 
 ---
 
-## 🚀 Installazione
+## 🚀 Installation
 
-### 1. Clona il repo
+### 1. Clone the repo
 
 ```bash
 git clone https://github.com/giovannifrontera/ai-rag-wiki-memory-OpenClaw-distributed
@@ -155,36 +155,36 @@ cd ai-rag-wiki-memory-OpenClaw-distributed
 pip install -r requirements.txt
 ```
 
-### 2. Installa e avvia Qdrant sul server
+### 2. Install and start Qdrant on the server
 
 ```bash
-# Scarica il binario
+# Download the binary
 mkdir -p ~/.qdrant ~/.local/bin
 curl -L https://github.com/qdrant/qdrant/releases/latest/download/qdrant-x86_64-unknown-linux-musl.tar.gz \
   | tar -xz -C ~/.local/bin
 
-# Installa il service systemd
+# Install the systemd service
 sudo cp deploy/qdrant.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable qdrant
 sudo systemctl start qdrant
 
-# Verifica
+# Verify
 curl http://localhost:6333/health
 # {"title":"qdrant - vector search engine","version":"..."}
 ```
 
-### 3. Configura il workspace
+### 3. Configure the workspace
 
-Copia `wiki.config.json` nel workspace e personalizzalo:
+Copy `wiki.config.json` to your workspace and edit it:
 
 ```json
 {
   "workspace": "~/.openclaw/workspace",
   "projects": {
-    "trading": {
-      "path": "wiki-works/trading",
-      "keywords": ["mercati", "indicatori", "trading", "borsa"]
+    "research": {
+      "path": "wiki-works/research",
+      "keywords": ["paper", "study", "review", "article"]
     }
   },
   "thresholds": {
@@ -208,25 +208,25 @@ Copia `wiki.config.json` nel workspace e personalizzalo:
 }
 ```
 
-> **Su un client:** cambia `"host": "localhost"` con il nome Tailscale del server (es. `"host": "qdrant-server.tail"`). Usa lo script `deploy/setup-client.sh` per automatizzare questo passaggio.
+> **On a client:** change `"host": "localhost"` to the server's Tailscale hostname (e.g. `"host": "qdrant-server.tail"`). Use `deploy/setup-client.sh` to automate this.
 
-### 4. Configura Syncthing
+### 4. Configure Syncthing
 
 ```bash
-# Avvia Syncthing
+# Start Syncthing
 syncthing
 
-# Apri l'interfaccia
+# Open the web UI
 # http://localhost:8384
 
-# Copia il file .stignore nel workspace
+# Copy the .stignore file to your workspace
 cp deploy/syncthing-stignore ~/.openclaw/workspace/.stignore
 
-# Aggiungi la cartella ~/.openclaw/workspace a Syncthing
-# e condividila con tutti i client
+# Add ~/.openclaw/workspace as a Syncthing folder
+# and share it with all client devices
 ```
 
-### 5. Verifica l'installazione
+### 5. Verify the installation
 
 ```bash
 python scripts/wiki.py rebuild --workspace ~/.openclaw/workspace
@@ -234,27 +234,27 @@ pytest tests/ -v
 # Expected: 9 passed
 ```
 
-### Setup nuova macchina client (automatizzato)
+### New client setup (automated)
 
 ```bash
-# Prerequisito: Tailscale già connesso, Syncthing già in esecuzione
-./deploy/setup-client.sh qdrant-server.tail
-# Aggiorna automaticamente wiki.config.json con l'host Qdrant remoto
-# Copia .stignore nel workspace
-# Stampa i passi manuali rimanenti (aggiungere dispositivo a Syncthing)
+# Prerequisite: Tailscale already connected, Syncthing running
+./deploy/setup-client.sh <qdrant-server-hostname>
+# Automatically updates wiki.config.json with the remote Qdrant host
+# Copies .stignore to the workspace
+# Prints remaining manual steps (add device in Syncthing)
 ```
 
 ---
 
-## 🔌 Integrazione OpenClaw
+## 🔌 OpenClaw Integration
 
-### Agent-driven setup (raccomandato)
+### Agent-driven setup (recommended)
 
 ```bash
-python scripts/setup_openclaw.py --workspace /path/assoluto/al/workspace
+python scripts/setup_openclaw.py --workspace /absolute/path/to/workspace
 ```
 
-### Setup manuale
+### Manual setup
 
 ```bash
 cd plugins/wiki-context-plugin
@@ -262,16 +262,16 @@ npm install
 npm run build
 ```
 
-Aggiungi alla configurazione OpenClaw:
+Add to OpenClaw config:
 
 ```json
 {
   "plugins": [{
     "id": "wiki-context-plugin",
-    "path": "/path/assoluto/a/plugins/wiki-context-plugin",
+    "path": "/absolute/path/to/plugins/wiki-context-plugin",
     "config": {
-      "workspace": "/path/assoluto/al/workspace",
-      "wikiContextScript": "/path/assoluto/a/scripts/wiki_context.py",
+      "workspace": "/absolute/path/to/workspace",
+      "wikiContextScript": "/absolute/path/to/scripts/wiki_context.py",
       "pythonExecutable": "python",
       "k": 3
     }
@@ -279,103 +279,104 @@ Aggiungi alla configurazione OpenClaw:
 }
 ```
 
-### Come funziona il plugin
+### How the plugin works
 
-Il plugin `wiki-context-plugin` intercetta ogni messaggio utente e, prima che arrivi all'agente:
+The `wiki-context-plugin` intercepts every user message and, before it reaches the agent:
 
-1. Esegue `wiki_context.py` che effettua una ricerca vettoriale su Qdrant
-2. Inietta le top-K pagine rilevanti nel prompt come blocco `<wiki-context>`
-3. L'agente risponde con contesto pertinente, senza dover invocare esplicitamente alcun tool
+1. Runs `wiki_context.py`, which performs a vector search on Qdrant
+2. Injects the top-K most relevant pages into the prompt as a `<wiki-context>` block
+3. The agent responds with relevant context, without needing to explicitly invoke any tool
 
-Il wiki si aggiorna durante la conversazione tramite `wiki.py ingest` — la prossima sessione trova già le nuove conoscenze indicizzate.
+The wiki is updated during the conversation via `wiki.py ingest` — the next session already finds the new knowledge indexed.
 
 ---
 
-## 🔀 Da Singola Macchina a Distribuito
+## 🔀 Migrating from Single Machine to Distributed
 
-Hai già `ai-longterm-wiki-memory-OpenClaw` installato su una macchina e vuoi espandere a un setup multi-macchina? Questa sezione guida la transizione passo per passo.
+Already running `ai-longterm-wiki-memory-OpenClaw` on one machine and want to expand to multi-machine? This section walks through the transition step by step.
 
-**Panoramica:** il tuo workspace Markdown (wiki, wiki-works, identity) rimane invariato — lo sincronizzerai con Syncthing. I vettori LanceDB vengono migrati a Qdrant una volta sola con uno script automatico.
+**Overview:** your existing Markdown workspace (wiki, wiki-works, identity) stays untouched — you will sync it with Syncthing. LanceDB vectors are migrated to Qdrant once with an automated script.
 
 ```
-Prima:   [Macchina A]  LanceDB locale + wiki locale
+Before:  [Machine A]   local LanceDB + local wiki
 
-Dopo:    [Server]      Qdrant :6333  +  wiki (Syncthing primario)
+After:   [Server]      Qdrant :6333  +  wiki (Syncthing primary)
               ↕ Tailscale + Syncthing
-         [Client B]    → Qdrant remoto + wiki (Syncthing client)
-         [Client C]    → Qdrant remoto + wiki (Syncthing client)
+         [Client B]    → remote Qdrant + wiki (Syncthing client)
+         [Client C]    → remote Qdrant + wiki (Syncthing client)
 ```
 
 ---
 
-### Fase 1 — Prepara il server
+### Phase 1 — Prepare the server
 
-Esegui questi passi sulla macchina che eseguirà Qdrant. Deve rimanere accesa quando le altre macchine lavorano.
+Run these steps on the machine that will run Qdrant. It must stay on while other machines are working.
 
-#### 1.1 — Installa Tailscale
+#### 1.1 — Install Tailscale
 
 ```bash
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
-# Nota il tuo hostname Tailscale (es. qdrant-server.tail.xxxxxxx.ts.net)
+# Note your Tailscale hostname (e.g. myserver.tail.xxxxxxx.ts.net)
 tailscale ip -4
 ```
 
-#### 1.2 — Installa e avvia Qdrant
+#### 1.2 — Install and start Qdrant
 
 ```bash
 mkdir -p ~/.qdrant ~/.qdrant/storage ~/.local/bin
 
-# Scarica il binario (controlla l'ultima versione su github.com/qdrant/qdrant)
+# Download the binary (check latest release at github.com/qdrant/qdrant)
 curl -L https://github.com/qdrant/qdrant/releases/latest/download/qdrant-x86_64-unknown-linux-musl.tar.gz \
   | tar -xz -C ~/.local/bin
 
-# Installa il service systemd (dal file nel repo)
+# Install the systemd service from the repo
 sudo cp deploy/qdrant.service /etc/systemd/system/
-# Modifica il path se il tuo username non è 'giovanni'
+# Edit the username if it is not 'giovanni'
 sudo nano /etc/systemd/system/qdrant.service
 
 sudo systemctl daemon-reload
 sudo systemctl enable qdrant
 sudo systemctl start qdrant
 
-# Verifica
+# Verify
 curl http://localhost:6333/health
 # {"title":"qdrant - vector search engine","version":"..."}
 ```
 
-#### 1.3 — Installa Syncthing
+#### 1.3 — Install Syncthing
 
 ```bash
 # Fedora / RHEL
 sudo dnf install syncthing
 
-# Avvia e abilita il service
+# Ubuntu / Debian
+sudo apt install syncthing
+
+# Enable and start
 systemctl --user enable syncthing
 systemctl --user start syncthing
 
-# Interfaccia web Syncthing
-# http://localhost:8384
+# Web UI: http://localhost:8384
 ```
 
-#### 1.4 — Clona il repo distribuito
+#### 1.4 — Clone the distributed repo
 
 ```bash
-cd ~/Documents/workspace   # o la directory che preferisci
 git clone https://github.com/giovannifrontera/ai-rag-wiki-memory-OpenClaw-distributed
 cd ai-rag-wiki-memory-OpenClaw-distributed
 pip install -r requirements.txt
 ```
 
-#### 1.5 — Aggiorna wiki.config.json nel workspace esistente
+#### 1.5 — Update wiki.config.json in the existing workspace
 
-Il tuo workspace LanceDB (es. `~/.openclaw/workspace`) ha già un `wiki.config.json`. Devi aggiornarlo per usare Qdrant:
+Your existing LanceDB workspace (e.g. `~/.openclaw/workspace`) already has a `wiki.config.json`. Update it to use Qdrant:
 
 ```bash
-# Backup del config originale
+# Backup first
 cp ~/.openclaw/workspace/wiki.config.json ~/.openclaw/workspace/wiki.config.json.bak
 
-# Apri e modifica manualmente, oppure usa python:
+# Update with Python
 python3 -c "
 import json, os
 
@@ -383,7 +384,7 @@ path = os.path.expanduser('~/.openclaw/workspace/wiki.config.json')
 with open(path) as f:
     cfg = json.load(f)
 
-# Rimuovi lancedb, aggiungi qdrant
+# Remove lancedb block, add qdrant
 cfg.pop('lancedb', None)
 cfg['embedding_model'] = 'BAAI/bge-m3'
 cfg['qdrant'] = {'host': 'localhost', 'port': 6333, 'collection': 'wiki_pages'}
@@ -391,115 +392,120 @@ cfg['workspace'] = os.path.expanduser('~/.openclaw/workspace')
 
 with open(path, 'w') as f:
     json.dump(cfg, f, indent=2)
-print('Fatto:', cfg['qdrant'])
+print('Done:', cfg['qdrant'])
 "
 ```
 
-#### 1.6 — Copia .stignore nel workspace
+#### 1.6 — Copy .stignore to the workspace
 
 ```bash
 cp deploy/syncthing-stignore ~/.openclaw/workspace/.stignore
 ```
 
-#### 1.7 — Aggiungi il workspace a Syncthing
+#### 1.7 — Add the workspace to Syncthing
 
-1. Apri `http://localhost:8384`
-2. Clicca **"Add Folder"**
-3. Imposta **Folder Path** = `~/.openclaw/workspace`
-4. Imposta **Folder ID** = `openclaw-workspace` (uguale su tutte le macchine!)
-5. **Non condividere ancora** — prima aggiungi i dispositivi client (Fase 2)
+1. Open `http://localhost:8384`
+2. Click **"Add Folder"**
+3. Set **Folder Path** = `~/.openclaw/workspace`
+4. Set **Folder ID** = `openclaw-workspace` (must be the same on all machines)
+5. **Do not share yet** — add client devices first (Phase 3)
 
 ---
 
-### Fase 2 — Migra i vettori LanceDB → Qdrant
+### Phase 2 — Migrate vectors: LanceDB → Qdrant
 
-Questo passaggio trasferisce i vettori esistenti senza ricalcolare gli embedding.
+This step transfers existing vectors without recomputing embeddings.
 
 ```bash
 cd ai-rag-wiki-memory-OpenClaw-distributed
 
-# Prima verifica (dry run) — nessuna scrittura
+# Dry run first (no writes)
 python scripts/migrate_lancedb_to_qdrant.py \
     --lancedb ~/.openclaw/workspace/memory/lancedb \
     --config ~/.openclaw/workspace/wiki.config.json \
     --dry-run
-# Output: "Trovati N chunk in LanceDB. Pagine uniche: M"
+# Output: "Found N chunks in LanceDB. Unique pages: M"
 
-# Migrazione reale
+# Real migration
 python scripts/migrate_lancedb_to_qdrant.py \
     --lancedb ~/.openclaw/workspace/memory/lancedb \
     --config ~/.openclaw/workspace/wiki.config.json
-# Output: "  OK wiki/concepts/rag.md (3 chunk)"
-#         "  OK wiki-works/trading/analisi.md (7 chunk)"
-#         "Migrazione completata: N chunk da M pagine."
+# Output: "  OK wiki/concepts/rag.md (3 chunks)"
+#         "  OK wiki-works/research/paper.md (7 chunks)"
+#         "Migration complete: N chunks from M pages."
 
-# Verifica che i vettori siano arrivati
+# Verify vectors arrived
 curl http://localhost:6333/collections/wiki_pages
-# {"result":{"points_count":N,...}}   ← deve corrispondere al numero di chunk
+# {"result":{"points_count":N,...}}   <- should match chunk count
 ```
 
-#### 1.8 — Verifica che tutto funzioni
+#### 1.8 — Verify everything works
 
 ```bash
-# Test: query semantica sul wiki esistente
+# Semantic query on the existing wiki
 python scripts/wiki_context.py \
     --workspace ~/.openclaw/workspace \
     --q "test query" --k 3
-# Deve restituire <wiki-context>...</wiki-context> con pagine rilevanti
+# Should return <wiki-context>...</wiki-context> with relevant pages
 
-# Aggiorna il plugin OpenClaw al nuovo repo
+# Update the OpenClaw plugin to point to this repo
 python scripts/setup_openclaw.py --workspace ~/.openclaw/workspace
 ```
 
-A questo punto il server è completamente operativo con Qdrant. LanceDB non è più usato — puoi rimuovere `memory/lancedb/` se vuoi liberare spazio (ma conserva il backup).
+The server is now fully operational with Qdrant. LanceDB is no longer used — you can remove `memory/lancedb/` to free disk space (keep the backup until you've confirmed everything works).
 
 ---
 
-### Fase 3 — Configura ogni macchina client
+### Phase 3 — Set up each client machine
 
-Ripeti questa fase per ogni client (Windows, altro Linux, ecc.).
+Repeat this phase for every client (Linux, macOS, Windows).
 
-#### 3.1 — Installa Tailscale e connettiti alla rete
+#### 3.1 — Install Tailscale and join the network
 
 ```bash
-# Linux
+# Linux / macOS
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
 
 # Windows
 winget install Tailscale.Tailscale
-# Accedi con lo stesso account usato sul server
+# Sign in with the same account used on the server
 
-# Verifica connettività con il server
+# Verify connectivity to the server
 ping <qdrant-server-ip>
 curl http://<qdrant-server-ip>:6333/health
 ```
 
-#### 3.2 — Installa Syncthing
+#### 3.2 — Install Syncthing
 
 ```bash
-# Linux
-sudo dnf install syncthing   # Fedora
-sudo apt install syncthing   # Ubuntu/Debian
+# Fedora / RHEL
+sudo dnf install syncthing
+
+# Ubuntu / Debian
+sudo apt install syncthing
+
+# macOS
+brew install syncthing
 
 # Windows
 winget install Syncthing.Syncthing
 
-# Avvia Syncthing
-syncthing   # oppure avvia come service
-# Interfaccia: http://localhost:8384
+# Start Syncthing
+syncthing   # or start as a service
+# Web UI: http://localhost:8384
 ```
 
-#### 3.3 — Aggiungi il server come dispositivo Syncthing
+#### 3.3 — Add the server as a Syncthing device
 
-1. Su questa macchina: apri `http://localhost:8384` → **"Add Remote Device"**
-2. Inserisci il **Device ID** del server (visibile sul server in Syncthing → "Show ID")
-3. Sul server: accetta la richiesta di pairing che appare nell'interfaccia
-4. Sul server: nella folder `openclaw-workspace`, abilita la condivisione con questo nuovo dispositivo
-5. Su questa macchina: accetta la folder condivisa → imposta il path locale (es. `~/.openclaw/workspace`)
-6. Attendi la sincronizzazione iniziale (può richiedere diversi minuti se il wiki è grande)
+1. On this machine: open `http://localhost:8384` → **"Add Remote Device"**
+2. Enter the server's **Device ID** (visible on the server in Syncthing → "Show ID")
+3. On the server: accept the pairing request that appears in the UI
+4. On the server: in the `openclaw-workspace` folder, enable sharing with this new device
+5. On this machine: accept the shared folder → set the local path (e.g. `~/.openclaw/workspace`)
+6. Wait for the initial sync (may take several minutes for large wikis)
 
-#### 3.4 — Clona il repo e installa le dipendenze
+#### 3.4 — Clone the repo and install dependencies
 
 ```bash
 git clone https://github.com/giovannifrontera/ai-rag-wiki-memory-OpenClaw-distributed
@@ -507,16 +513,16 @@ cd ai-rag-wiki-memory-OpenClaw-distributed
 pip install -r requirements.txt
 ```
 
-#### 3.5 — Configura il wiki.config.json del client
+#### 3.5 — Update wiki.config.json on the client
 
-Il `wiki.config.json` arriverà via Syncthing dal server (con `host: localhost`). Devi cambiare l'host:
+The `wiki.config.json` will arrive via Syncthing from the server (with `host: localhost`). You need to change the host:
 
 ```bash
-# Usa lo script automatico
+# Automated
 ./deploy/setup-client.sh <qdrant-server-hostname>
-# Es: ./deploy/setup-client.sh qdrant-server.tail.xxxxxxx.ts.net
+# e.g. ./deploy/setup-client.sh myserver.tail.xxxxxxx.ts.net
 
-# Oppure manualmente
+# Or manually
 python3 -c "
 import json, os
 path = os.path.expanduser('~/.openclaw/workspace/wiki.config.json')
@@ -525,117 +531,119 @@ with open(path) as f:
 cfg['qdrant']['host'] = '<qdrant-server-hostname>'
 with open(path, 'w') as f:
     json.dump(cfg, f, indent=2)
-print('host aggiornato:', cfg['qdrant']['host'])
+print('host updated:', cfg['qdrant']['host'])
 "
 ```
 
-> **Nota:** `wiki.config.json` è in `.stignore` — le modifiche locali non vengono sovrascritte da Syncthing.
+> **Note:** `wiki.config.json` is listed in `.stignore` — local edits are never overwritten by Syncthing.
 
-#### 3.6 — Verifica connettività e installa il plugin OpenClaw
+#### 3.6 — Verify connectivity and install the OpenClaw plugin
 
 ```bash
-# Test connettività Qdrant remoto
+# Test remote Qdrant
 curl http://<qdrant-server-hostname>:6333/health
 
-# Test query wiki
+# Test wiki query
 python scripts/wiki_context.py \
     --workspace ~/.openclaw/workspace \
     --q "test" --k 3
 
-# Installa/aggiorna il plugin OpenClaw
+# Install / update the OpenClaw plugin
 python scripts/setup_openclaw.py --workspace ~/.openclaw/workspace
 ```
 
-Se `wiki_context.py` restituisce risultati, il client è operativo.
+If `wiki_context.py` returns results, the client is operational.
 
 ---
 
-### Riepilogo
+### Summary
 
-| Passo | Dove | Comando chiave |
-|-------|------|----------------|
-| Installa Qdrant | Server | `systemctl start qdrant` |
-| Installa Syncthing | Tutti | `syncthing` |
-| Installa Tailscale | Tutti | `tailscale up` |
-| Clona repo distribuito | Tutti | `git clone ...` |
-| Aggiorna wiki.config.json | Server | Python snippet — `host: localhost` |
-| Migra vettori LanceDB → Qdrant | Server | `migrate_lancedb_to_qdrant.py` |
-| Condividi workspace Syncthing | Server | Interfaccia web Syncthing |
-| Aggiungi dispositivo Syncthing | Ogni client | Interfaccia web Syncthing |
-| Cambia host Qdrant in config | Ogni client | `setup-client.sh <hostname>` |
-| Installa plugin OpenClaw | Tutti | `setup_openclaw.py` |
+| Step | Where | Key command |
+|------|-------|-------------|
+| Install Qdrant | Server | `systemctl start qdrant` |
+| Install Syncthing | All | `syncthing` |
+| Install Tailscale | All | `tailscale up` |
+| Clone distributed repo | All | `git clone ...` |
+| Update wiki.config.json | Server | Python snippet — `host: localhost` |
+| Migrate vectors LanceDB → Qdrant | Server | `migrate_lancedb_to_qdrant.py` |
+| Share workspace in Syncthing | Server | Syncthing web UI |
+| Add Syncthing device | Each client | Syncthing web UI |
+| Change Qdrant host in config | Each client | `setup-client.sh <hostname>` |
+| Install OpenClaw plugin | All | `setup_openclaw.py` |
 
 ---
 
-## 🔄 Migrazione da LanceDB
+## 🔄 Migrating Vectors from LanceDB
 
-Se hai già dati in `ai-longterm-wiki-memory-OpenClaw`, puoi trasferire tutti i vettori a Qdrant senza re-embedding (i vettori bge-m3 vengono riutilizzati as-is):
+If you already have data in `ai-longterm-wiki-memory-OpenClaw`, you can transfer all vectors to Qdrant without re-embedding (bge-m3 vectors are reused as-is):
 
 ```bash
-# Prerequisito: Qdrant in esecuzione, lancedb installato temporaneamente
-pip install lancedb  # solo per la migrazione
+# Prerequisite: Qdrant running, lancedb installed temporarily
+pip install lancedb
 
 python scripts/migrate_lancedb_to_qdrant.py \
     --lancedb ~/.openclaw/workspace/memory/lancedb \
     --config ~/.openclaw/workspace/wiki.config.json
 
-# Dry run (mostra statistiche senza scrivere)
+# Dry run (show stats, no writes)
 python scripts/migrate_lancedb_to_qdrant.py \
     --lancedb ~/.openclaw/workspace/memory/lancedb \
     --config ~/.openclaw/workspace/wiki.config.json \
     --dry-run
 
-# Verifica che i vettori siano arrivati
+# Verify vectors arrived
 curl http://localhost:6333/collections/wiki_pages
 # {"result":{"points_count":N,...}}
 
-# Disinstalla lancedb dopo la migrazione
+# Uninstall lancedb after migration
 pip uninstall lancedb
 ```
 
 ---
 
-## 📐 Struttura del Filesystem
+## 📐 Filesystem Layout
 
 ```
 ai-rag-wiki-memory-OpenClaw-distributed/
 ├── scripts/
-│   ├── wiki.py                       ← CLI unificata (11 comandi)
-│   ├── wiki_qdrant.py                ← ops Qdrant (upsert, staging, query, dedup, renames)
-│   ├── wiki_context.py               ← hook pre-prompt (ricerca + iniezione <wiki-context>)
-│   ├── migrate_lancedb_to_qdrant.py  ← migrazione one-shot LanceDB → Qdrant
-│   ├── wiki_embed.py                 ← chunking + bge-m3
-│   ├── wiki_index.py                 ← indice token-budget
-│   ├── wiki_graph.py                 ← nodi/archi per il grafo D3
+│   ├── wiki.py                       ← unified CLI (11 commands)
+│   ├── wiki_qdrant.py                ← Qdrant ops (upsert, staging, query, dedup, renames)
+│   ├── wiki_context.py               ← pre-prompt hook (search + inject <wiki-context>)
+│   ├── migrate_lancedb_to_qdrant.py  ← one-shot migration LanceDB → Qdrant
+│   ├── wiki_embed.py                 ← boundary-aware chunking + bge-m3
+│   ├── wiki_index.py                 ← token-budget index generation
+│   ├── wiki_graph.py                 ← node/edge builder for D3 graph
 │   ├── wiki_server.py                ← FastAPI: REST, WebSocket, JWT, stats/lint
-│   ├── wiki_selfreflect.py           ← auto-riflessione comportamentale
-│   ├── wiki_workflows.py             ← orchestrazione comandi CLI
-│   ├── wiki_check_setup.py           ← verifica prerequisiti
-│   └── setup_openclaw.py             ← setup automatico plugin OpenClaw
-├── plugins/wiki-context-plugin/      ← plugin TypeScript per OpenClaw
+│   ├── wiki_selfreflect.py           ← behavioural self-reflection
+│   ├── wiki_workflows.py             ← CLI command orchestration
+│   ├── wiki_check_setup.py           ← prerequisite checks
+│   └── setup_openclaw.py             ← automated OpenClaw plugin setup
+├── plugins/wiki-context-plugin/      ← TypeScript plugin for OpenClaw
 ├── skills/
-│   ├── wiki-core.md                  ← skill agente: classificazione intent + workflow + protocollo Syncthing
-│   ├── wiki-core.it.md               ← versione italiana
-│   └── wiki-setup.md                 ← istruzioni di setup per l'agente
+│   ├── wiki-core.md                  ← agent skill: intent classification + workflows + Syncthing protocol
+│   ├── wiki-core.it.md               ← Italian version
+│   └── wiki-setup.md                 ← setup instructions for agents
 ├── deploy/
-│   ├── qdrant.service                ← unit systemd per Linux (server)
-│   ├── syncthing-stignore            ← regole esclusione Syncthing (copiare in workspace/.stignore)
-│   └── setup-client.sh               ← script setup automatico per nuova macchina client
+│   ├── qdrant.service                ← systemd unit for Linux (server)
+│   ├── syncthing-stignore            ← Syncthing exclusion rules (copy to workspace/.stignore)
+│   └── setup-client.sh              ← automated setup script for new client machines
 ├── tests/
-│   ├── test_wiki_qdrant.py           ← 9 test per wiki_qdrant.py (usa QdrantClient(':memory:'))
-│   └── [altri test ereditati]
-├── frontend/index.html               ← SPA: D3.js + pannello pagina + WebSocket
-├── wiki.config.json                  ← configurazione (workspace, qdrant, progetti, soglie)
-├── requirements.txt                  ← dipendenze Python
-├── AGENTS.md                         ← istruzioni obbligatorie per agenti AI
-└── SPEC.md                           ← specifica tecnica completa
+│   ├── test_wiki_qdrant.py           ← 9 tests for wiki_qdrant.py (uses QdrantClient(':memory:'))
+│   └── [other inherited tests]
+├── frontend/index.html               ← SPA: D3.js + page panel + WebSocket client
+├── wiki.config.json                  ← configuration (workspace, qdrant, projects, thresholds)
+├── requirements.txt                  ← Python dependencies
+├── AGENTS.md                         ← mandatory instructions for AI agents
+├── AGENTS-server.md                  ← server-specific agent instructions
+├── AGENTS-client.md                  ← client-specific agent instructions
+└── SPEC.md                           ← full technical specification
 ```
 
 ---
 
-## 🧪 Test
+## 🧪 Tests
 
-I test usano `QdrantClient(":memory:")` — nessun server Qdrant richiesto per eseguirli:
+Tests use `QdrantClient(":memory:")` — no running Qdrant server required:
 
 ```bash
 pytest tests/test_wiki_qdrant.py -v
@@ -657,45 +665,45 @@ test_detect_renames_empty              PASSED
 
 ---
 
-## 🔬 Note Tecniche
+## 🔬 Technical Notes
 
-### Interfaccia pubblica di wiki_qdrant.py
+### wiki_qdrant.py public interface
 
-`wiki_qdrant.py` espone la stessa interfaccia pubblica di `wiki_lancedb.py` — gli stessi nomi di funzione, gli stessi tipi. Il codice che chiama `wiki_lancedb.upsert(db, path, chunks)` può essere migrato a `wiki_qdrant.upsert(client, cfg, path, chunks)` con modifiche minime.
+`wiki_qdrant.py` exposes the same public interface as `wiki_lancedb.py` — same function names, same types. Code calling `wiki_lancedb.upsert(db, path, chunks)` can be migrated to `wiki_qdrant.upsert(client, cfg, path, chunks)` with minimal changes.
 
-| Funzione | Descrizione |
+| Function | Description |
 |---|---|
-| `get_db(config)` | Crea e restituisce un `QdrantClient` |
-| `ensure_collection(client, name)` | Crea la collection se non esiste (idempotente) |
-| `upsert(client, config, path, chunks, staging)` | Sostituisce tutti i chunk per `path`, inserisce i nuovi |
-| `promote_staging(client, config)` | Copia `staging_*` → collection principale, elimina staging |
-| `rollback_staging(client, config)` | Elimina staging senza toccare la collection principale |
-| `query_similar(client, config, vector, k, path_prefix)` | Ricerca top-K per similarità coseno |
-| `find_semantic_duplicates(client, config)` | Matrice di similarità su tutti i chunk_id=0 |
-| `detect_renames(client, config, filesystem_paths, workspace)` | Confronta hash pagine DB vs filesystem |
+| `get_db(config)` | Creates and returns a `QdrantClient` |
+| `ensure_collection(client, name)` | Creates the collection if it does not exist (idempotent) |
+| `upsert(client, config, path, chunks, staging)` | Replaces all chunks for `path`, inserts the new ones |
+| `promote_staging(client, config)` | Copies `staging_*` → main collection, deletes staging |
+| `rollback_staging(client, config)` | Deletes staging without touching the main collection |
+| `query_similar(client, config, vector, k, path_prefix)` | Top-K search by cosine similarity |
+| `find_semantic_duplicates(client, config)` | Similarity matrix across all chunk_id=0 points |
+| `detect_renames(client, config, filesystem_paths, workspace)` | Compares page hashes between DB and filesystem |
 
-### Schema punto Qdrant
+### Qdrant point schema
 
 ```
 payload:
-  path          STRING   — path relativo dal workspace root
-  chunk_id      INT      — indice chunk all'interno della pagina
-  chunk_text    STRING   — testo del chunk (512 token)
-  content_hash  STRING   — hash del testo del chunk
-  page_hash     STRING   — hash dell'intera pagina (per detect_renames)
+  path          STRING   — relative path from workspace root
+  chunk_id      INT      — chunk index within the page
+  chunk_text    STRING   — chunk text (512 tokens)
+  content_hash  STRING   — hash of the chunk text
+  page_hash     STRING   — hash of the full page (for detect_renames)
   last_embedded FLOAT    — Unix timestamp
 
-vector: FLOAT[1024]      — bge-m3, distanza Cosine
-id:     UUID deterministico da md5(path::chunk_id)
+vector: FLOAT[1024]      — bge-m3, Cosine distance
+id:     deterministic UUID from md5(path::chunk_id)
 ```
 
-### Staging atomico
+### Atomic staging
 
-Le operazioni di ingest scrivono prima su `staging_wiki_pages`. Solo `promote_staging()` muove i vettori nella collection principale. Un crash lascia lo staging popolato; la sessione successiva può rilevare e ripulire lo stato inconsistente — nessuna corruzione silenziosa.
+Ingest operations write to `staging_wiki_pages` first. Only `promote_staging()` moves vectors to the main collection. A crash leaves staging populated; the next session can detect and clean up the inconsistent state — no silent corruption.
 
 ---
 
-## 📋 Riferimento CLI
+## 📋 CLI Reference
 
 ```
 wiki.py ingest         --workspace <path> --pages <p1.tmp,...> --log <str>
@@ -706,58 +714,58 @@ wiki.py rebuild        --workspace <path>
 wiki.py scan-inbox     --workspace <path>
 wiki.py ingest-pdf     --workspace <path> --file <local-path|url>
 wiki.py serve          --workspace <path> [--host] [--port 7331] [--no-auth]
-wiki.py behavior-log   --workspace <path> --event "<correzione>"
+wiki.py behavior-log   --workspace <path> --event "<correction>"
 wiki.py self-reflect   --workspace <path>
-wiki.py session-update --workspace <path> --op <tipo> --status <ok|failed|...>
+wiki.py session-update --workspace <path> --op <type> --status <ok|failed|...>
 
 wiki_context.py        --workspace <path> --q <string> [--k 3] [--max-chars 600]
 
 migrate_lancedb_to_qdrant.py --lancedb <path> --config <path> [--dry-run]
 ```
 
-Tutti i comandi producono JSON strutturato su stdout.
+All commands output structured JSON to stdout.
 
 ---
 
-## 🌐 Ecosistema AI-Wiki
+## 🌐 AI-Wiki Ecosystem
 
-Questo progetto fa parte di una toolchain coerente per la gestione della conoscenza AI-augmented:
+This project is part of a coherent toolchain for AI-augmented knowledge management:
 
-| Progetto | Stack | Ruolo |
+| Project | Stack | Role |
 |---|---|---|
-| [ai-longterm-wiki-memory-OpenClaw](https://github.com/giovannifrontera/ai-longterm-wiki-memory-OpenClaw) | Python + LanceDB | Memoria persistente locale, singola macchina |
-| **ai-rag-wiki-memory-OpenClaw-distributed** ← *sei qui* | Python + Qdrant + Syncthing | Memoria condivisa multi-macchina |
-| [ai-longterm-wiki-memory-ClaudeCode](https://github.com/giovannifrontera/ai-longterm-wiki-memory-ClaudeCode) | Claude + MCP + hooks | Integrazione nativa Claude Code |
-| [ai-wiki-graph-RAG-lms](https://github.com/giovannifrontera/ai-wiki-graph-RAG-lms) | Anthropic / OpenAI | Backend LTI 1.3 per Moodle, Canvas, Blackboard |
-| [academic-PRISMA-research-workflow](https://github.com/giovannifrontera/academic-PRISMA-research-workflow) | Claude | Automazione systematic review → contenuto evidence-based nel wiki |
+| [ai-longterm-wiki-memory-OpenClaw](https://github.com/giovannifrontera/ai-longterm-wiki-memory-OpenClaw) | Python + LanceDB | Persistent local memory, single machine |
+| **ai-rag-wiki-memory-OpenClaw-distributed** ← *you are here* | Python + Qdrant + Syncthing | Shared multi-machine memory |
+| [ai-longterm-wiki-memory-ClaudeCode](https://github.com/giovannifrontera/ai-longterm-wiki-memory-ClaudeCode) | Claude + MCP + hooks | Native Claude Code integration |
+| [ai-wiki-graph-RAG-lms](https://github.com/giovannifrontera/ai-wiki-graph-RAG-lms) | Anthropic / OpenAI | LTI 1.3 backend for Moodle, Canvas, Blackboard |
+| [academic-PRISMA-research-workflow](https://github.com/giovannifrontera/academic-PRISMA-research-workflow) | Claude | Systematic review automation → evidence-based wiki content |
 
 ---
 
-## ⚠️ Limitazioni Note
+## ⚠️ Known Limitations
 
-- **Qdrant richiede un server attivo:** a differenza di LanceDB (embedded), Qdrant deve essere raggiungibile in rete. Se il server è offline, `wiki_context.py` fallisce silenziosamente (non inietta contesto ma non blocca l'agente).
-- **Latenza di rete:** le query semantiche passano per Tailscale — latenza aggiuntiva di 1-10 ms rispetto a LanceDB locale. Trascurabile in pratica.
-- **Syncthing e PDF voluminosi:** PDF > 50 MB possono impiegare tempo per sincronizzarsi tra macchine prima di essere disponibili per l'ingestione.
-- **Nessun OCR:** PDF solo immagine (senza testo selezionabile) vengono marcati `status: failed` nel registro e saltati.
-- **Test parziali:** i test attuali coprono `wiki_qdrant.py`. I test dell'interfaccia web e dei workflow completi ereditati dalla versione base non sono stati ancora migrati.
+- **Qdrant requires a running server:** unlike embedded LanceDB, Qdrant must be reachable over the network. If the server is offline, `wiki_context.py` fails silently (no context injected, but the agent is not blocked).
+- **Network latency:** semantic queries travel over Tailscale — 1–10 ms of additional latency compared to local LanceDB. Negligible in practice.
+- **Large PDFs and Syncthing:** PDFs over 50 MB may take time to sync between machines before becoming available for ingestion.
+- **No OCR:** image-only PDFs (no selectable text) are marked `status: failed` in the registry and skipped.
+- **Partial test coverage:** current tests cover `wiki_qdrant.py`. Web interface and full workflow tests inherited from the base version have not been migrated yet.
 
 ---
 
-## 📄 Licenza
+## 📄 License
 
-Distribuito sotto licenza **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+Distributed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
 
-Ciò significa che:
-- Puoi usare, modificare e distribuire questo software liberamente
-- Qualsiasi modifica che distribuisci (anche come servizio di rete) deve essere rilasciata sotto la stessa licenza
-- Devi fornire il codice sorgente a chiunque interagisca con il servizio via rete
+This means:
+- You may use, modify, and distribute this software freely
+- Any modified version you distribute (including as a network service) must be released under the same license
+- You must provide source code to anyone who interacts with the service over a network
 
-Vedi il file [`LICENSE`](LICENSE) per il testo completo.
+See the [`LICENSE`](LICENSE) file for the full text.
 
 ---
 
 <div align="center">
 
-*Sviluppato da [Giovanni Frontera, Ph.D.](https://github.com/giovannifrontera) · Parte dell'ecosistema AI-Wiki*
+*Developed by [Giovanni Frontera, Ph.D.](https://github.com/giovannifrontera) · Part of the AI-Wiki Ecosystem*
 
 </div>
