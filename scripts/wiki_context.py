@@ -78,12 +78,8 @@ def _run(args):
     if not cfg:
         return
 
-    lancedb_path = os.path.join(args.workspace, cfg["lancedb"]["path"])
-    if not os.path.exists(lancedb_path):
-        return
-
     try:
-        import lancedb
+        from qdrant_client import QdrantClient
         os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
         os.environ.setdefault("HF_HUB_VERBOSITY", "error")
         os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
@@ -92,21 +88,25 @@ def _run(args):
         logging.getLogger("sentence_transformers").setLevel(logging.ERROR)
         logging.getLogger("transformers").setLevel(logging.ERROR)
         logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
+        import wiki_qdrant
     except ImportError:
         return
 
-    db = lancedb.connect(lancedb_path)
-    table_result = db.list_tables()
-    existing = getattr(table_result, "tables", None) or list(table_result)
-    if "wiki_pages" not in existing:
+    qdrant_cfg = cfg.get("qdrant", {})
+    client = QdrantClient(
+        host=qdrant_cfg.get("host", "localhost"),
+        port=qdrant_cfg.get("port", 6333),
+    )
+    coll = qdrant_cfg.get("collection", "wiki_pages")
+    existing_colls = [c.name for c in client.get_collections().collections]
+    if coll not in existing_colls:
         return
 
-    table = db.open_table("wiki_pages")
-    model = SentenceTransformer(cfg["lancedb"]["embedding_model"], device="cpu")
+    model = SentenceTransformer(cfg.get("embedding_model", "BAAI/bge-m3"), device="cpu")
     vector = model.encode(args.q, normalize_embeddings=True).tolist()
 
     # Over-fetch per deduplicare per pagina, poi prendere i top-k
-    raw = table.search(vector).limit(args.k * 4).to_list()
+    raw = wiki_qdrant.query_similar(client, cfg, vector, k=args.k * 4)
 
     exclude_patterns = cfg.get("exclude_from_index", [])
     seen: dict[str, dict] = {}
