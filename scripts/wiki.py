@@ -10,6 +10,7 @@ from pathlib import Path
 REQUIRED_CONFIG_FIELDS = [
     ("workspace",),
     ("projects",),
+    ("embedding_model",),
     ("thresholds", "index_token_budget"),
     ("thresholds", "staleness_days"),
     ("thresholds", "similarity_merge"),
@@ -20,8 +21,9 @@ REQUIRED_CONFIG_FIELDS = [
     ("thresholds", "chunk_overlap_tokens"),
     ("thresholds", "page_chunk_threshold_tokens"),
     ("thresholds", "quality_filter_min_score"),
-    ("lancedb", "path"),
-    ("lancedb", "embedding_model"),
+    ("qdrant", "host"),
+    ("qdrant", "port"),
+    ("qdrant", "collection"),
 ]
 
 
