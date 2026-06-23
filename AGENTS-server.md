@@ -1,4 +1,4 @@
-# AGENTS-server.md — Macchina Server (Bazzite)
+# AGENTS-server.md — Macchina Server
 
 > ## ⛔ STOP — LEGGI PRIMA DI QUALSIASI AZIONE
 >

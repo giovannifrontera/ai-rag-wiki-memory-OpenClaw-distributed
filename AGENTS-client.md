@@ -5,7 +5,7 @@
 > **Ogni sessione, prima di qualsiasi azione:**
 > 1. `Read wiki-session.md` nel workspace — controlla lo status
 > 2. `Read skills/wiki-core.md` — carica il protocollo completo
-> 3. Verifica connettività Qdrant: `curl http://<bazzite-tailscale>:6333/health`
+> 3. Verifica connettività Qdrant: `curl http://<qdrant-server>:6333/health`
 > 4. Verifica Syncthing sincronizzato (file recenti presenti in `wiki/`)
 > 5. Scansiona `wiki/` e `wiki-works/` per file `*.sync-conflict-*` — se trovati, **fermati e avvisa**
 >
@@ -13,7 +13,7 @@
 >
 > ---
 
-Questa è una **macchina client**: non esegue Qdrant localmente. Si connette al server Bazzite via Tailscale per le query vettoriali, e riceve i file wiki via Syncthing.
+Questa è una **macchina client**: non esegue Qdrant localmente. Si connette al server server via Tailscale per le query vettoriali, e riceve i file wiki via Syncthing.
 
 ---
 
@@ -21,9 +21,9 @@ Questa è una **macchina client**: non esegue Qdrant localmente. Si connette al 
 
 ```bash
 # Qdrant raggiungibile via Tailscale?
-curl http://<bazzite-tailscale>:6333/health
+curl http://<qdrant-server>:6333/health
 # Atteso: {"title":"qdrant - vector search engine","version":"..."}
-# Se fallisce: verifica che Tailscale sia connesso e Qdrant sia in esecuzione su Bazzite
+# Se fallisce: verifica che Tailscale sia connesso e Qdrant sia in esecuzione su server
 
 # Tailscale connesso?
 tailscale status
@@ -35,7 +35,7 @@ ls -lt ~/.openclaw/workspace/wiki/ | head -5
 
 Se Qdrant non è raggiungibile:
 - Verifica `tailscale status` — sei connesso alla rete?
-- Verifica che Qdrant sia in esecuzione su Bazzite: chiedi all'utente di controllare `systemctl status qdrant`
+- Verifica che Qdrant sia in esecuzione su server: chiedi all'utente di controllare `systemctl status qdrant`
 - **Non procedere** con ingest se Qdrant non risponde — i vettori non verrebbero scritti
 
 ---
@@ -43,8 +43,8 @@ Se Qdrant non è raggiungibile:
 ## Struttura workspace
 
 ```
-~/.openclaw/workspace/          ← sincronizzato via Syncthing da Bazzite
-├── wiki.config.json            ← qdrant.host = "<bazzite-tailscale>" (NON localhost)
+~/.openclaw/workspace/          ← sincronizzato via Syncthing da server
+├── wiki.config.json            ← qdrant.host = "<qdrant-server>" (NON localhost)
 ├── wiki-session.md             ← stato sessione corrente
 ├── wiki/                       ← livello Distillato + Identity (ricevuto via Syncthing)
 │   └── identity/               ← solo wiki.py self-reflect scrive qui
@@ -53,10 +53,10 @@ Se Qdrant non è raggiungibile:
 ```
 
 > **Importante:** `wiki.config.json` su questa macchina deve avere `qdrant.host` impostato
-> al nome Tailscale di Bazzite, **non** `localhost`. Verifica con:
+> al nome Tailscale di server, **non** `localhost`. Verifica con:
 > ```bash
 > python -c "import json; cfg=json.load(open('~/.openclaw/workspace/wiki.config.json'.replace('~', __import__('os').path.expanduser('~')))); print(cfg['qdrant']['host'])"
-> # Atteso: bazzite.tail (o simile), NON localhost
+> # Atteso: hostname del server (es. server.tail.xxxxx.ts.net), NON localhost
 > ```
 
 ---
@@ -74,7 +74,7 @@ I client eseguono gli stessi comandi del server, con due eccezioni:
 | `serve` | ✅ Sì | Dashboard locale (legge Qdrant remoto) |
 | `ingest-pdf` | ✅ Sì | Estrae PDF localmente, file va in Syncthing |
 | `self-reflect` | ✅ Sì | Scrive in `wiki/identity/` (propagato da Syncthing) |
-| `rebuild` | ⛔ Evita | Operazione pesante — preferibilmente eseguita su Bazzite |
+| `rebuild` | ⛔ Evita | Operazione pesante — preferibilmente eseguita su server |
 
 ### Ingestione
 
@@ -85,7 +85,7 @@ python scripts/wiki.py ingest \
     --log "ingest | Nuovo concetto trading"
 ```
 
-Il file Markdown viene scritto localmente; Syncthing lo propaga a Bazzite entro pochi secondi. I vettori vengono scritti su Qdrant via Tailscale.
+Il file Markdown viene scritto localmente; Syncthing lo propaga a server entro pochi secondi. I vettori vengono scritti su Qdrant via Tailscale.
 
 ### Query e contesto
 
@@ -99,7 +99,7 @@ python scripts/wiki_context.py \
 
 ## Protocollo conflitti Syncthing
 
-I file `*.sync-conflict-*` si creano quando questa macchina e Bazzite (o un'altra macchina) modificano la stessa pagina wiki contemporaneamente.
+I file `*.sync-conflict-*` si creano quando questa macchina e server (o un'altra macchina) modificano la stessa pagina wiki contemporaneamente.
 
 Se trovi file `*.sync-conflict-*` in `wiki/` o `wiki-works/`:
 

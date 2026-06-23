@@ -21,7 +21,7 @@ Poi leggi il file corretto:
 
 | Macchina | File da leggere |
 |----------|-----------------|
-| **Server** (Bazzite o macchina con Qdrant locale) | [`AGENTS-server.md`](AGENTS-server.md) |
+| **Server** (macchina con Qdrant locale) | [`AGENTS-server.md`](AGENTS-server.md) |
 | **Client** (qualsiasi altra macchina) | [`AGENTS-client.md`](AGENTS-client.md) |
 
 ---
@@ -30,7 +30,7 @@ Poi leggi il file corretto:
 
 | | Server | Client |
 |---|---|---|
-| Qdrant | `localhost:6333` | `<bazzite-tailscale>:6333` via Tailscale |
+| Qdrant | `localhost:6333` | `<qdrant-server>:6333` via Tailscale |
 | `wiki.py rebuild` | ✅ Esegui qui | ⛔ Evita (operazione pesante) |
 | Syncthing | Nodo primario | Riceve file da server |
 | `wiki.py ingest` | ✅ Sì | ✅ Sì (scrive file locali + vettori remoti) |

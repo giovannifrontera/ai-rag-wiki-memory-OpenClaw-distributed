@@ -44,8 +44,8 @@ Il risultato: **un'unica coscienza condivisa** tra tutte le istanze OpenClaw, su
 │                      RETE TAILSCALE                         │
 │                                                             │
 │  ┌──────────────┐    Syncthing     ┌──────────────────────┐ │
-│  │   Bazzite    │◄────────────────►│   Windows / altro    │ │
-│  │  (server)    │                  │     (client)         │ │
+│  │   Server     │◄────────────────►│      Client          │ │
+│  │  (Linux/any) │                  │  (Linux/macOS/Win)   │ │
 │  │              │                  │                       │ │
 │  │  Qdrant :6333│◄─── Tailscale ───│  wiki_context.py     │ │
 │  │  Syncthing   │                  │  OpenClaw plugin     │ │
@@ -60,7 +60,7 @@ Il risultato: **un'unica coscienza condivisa** tra tutte le istanze OpenClaw, su
 | Componente | Tecnologia | Dove gira | Cosa fa |
 |---|---|---|---|
 | File wiki / identità / diari | Syncthing | Tutte le macchine | Sincronizza i Markdown in tempo reale |
-| Database vettoriale | Qdrant | Solo Bazzite (o server dedicato) | Ricerca semantica centralizzata |
+| Database vettoriale | Qdrant | Solo il server (macchina dedicata) | Ricerca semantica centralizzata |
 | Agente | OpenClaw | Tutte le macchine | Legge/scrive via Tailscale → Qdrant |
 | Rete privata | Tailscale | Tutte le macchine | Connette le macchine senza esporre porte pubbliche |
 
@@ -104,14 +104,14 @@ Questo progetto è un'**evoluzione diretta** di [`ai-longterm-wiki-memory-OpenCl
 | **Staging / rollback** | Le operazioni di upsert usano una collection `staging_*` prima di promuovere in produzione |
 | **Script di migrazione** | `migrate_lancedb_to_qdrant.py` trasferisce i vettori esistenti senza re-embedding |
 | **Protocollo conflitti Syncthing** | Rilevamento e risoluzione guidata dei file `*.sync-conflict-*` in `wiki-core.md` |
-| **Deploy Bazzite** | `deploy/qdrant.service` (systemd), `deploy/setup-client.sh`, `deploy/syncthing-stignore` |
+| **File di deploy** | `deploy/qdrant.service` (systemd Linux), `deploy/setup-client.sh`, `deploy/syncthing-stignore` |
 | **Path cross-platform** | Nessun path assoluto con username — tutto usa `~` o path relativi |
 
 ---
 
 ## 🔧 Requisiti
 
-### Server (Bazzite o macchina Linux)
+### Server (macchina Linux con Qdrant)
 
 - Python 3.11+
 - [Qdrant](https://qdrant.tech) server (vedi `deploy/qdrant.service`)
@@ -155,7 +155,7 @@ cd ai-rag-wiki-memory-OpenClaw-distributed
 pip install -r requirements.txt
 ```
 
-### 2. Installa e avvia Qdrant su Bazzite
+### 2. Installa e avvia Qdrant sul server
 
 ```bash
 # Scarica il binario
@@ -208,7 +208,7 @@ Copia `wiki.config.json` nel workspace e personalizzalo:
 }
 ```
 
-> **Su un client:** cambia `"host": "localhost"` con il nome Tailscale del server Bazzite (es. `"host": "bazzite.tail"`). Usa lo script `deploy/setup-client.sh` per automatizzare questo passaggio.
+> **Su un client:** cambia `"host": "localhost"` con il nome Tailscale del server (es. `"host": "qdrant-server.tail"`). Usa lo script `deploy/setup-client.sh` per automatizzare questo passaggio.
 
 ### 4. Configura Syncthing
 
@@ -223,7 +223,7 @@ syncthing
 cp deploy/syncthing-stignore ~/.openclaw/workspace/.stignore
 
 # Aggiungi la cartella ~/.openclaw/workspace a Syncthing
-# e condividila tra il server Bazzite e tutti i client
+# e condividila con tutti i client
 ```
 
 ### 5. Verifica l'installazione
@@ -238,7 +238,7 @@ pytest tests/ -v
 
 ```bash
 # Prerequisito: Tailscale già connesso, Syncthing già in esecuzione
-./deploy/setup-client.sh bazzite.tail
+./deploy/setup-client.sh qdrant-server.tail
 # Aggiorna automaticamente wiki.config.json con l'host Qdrant remoto
 # Copia .stignore nel workspace
 # Stampa i passi manuali rimanenti (aggiungere dispositivo a Syncthing)
@@ -300,7 +300,7 @@ Hai già `ai-longterm-wiki-memory-OpenClaw` installato su una macchina e vuoi es
 ```
 Prima:   [Macchina A]  LanceDB locale + wiki locale
 
-Dopo:    [Bazzite]     Qdrant :6333  +  wiki (Syncthing primario)
+Dopo:    [Server]      Qdrant :6333  +  wiki (Syncthing primario)
               ↕ Tailscale + Syncthing
          [Client B]    → Qdrant remoto + wiki (Syncthing client)
          [Client C]    → Qdrant remoto + wiki (Syncthing client)
@@ -308,7 +308,7 @@ Dopo:    [Bazzite]     Qdrant :6333  +  wiki (Syncthing primario)
 
 ---
 
-### Fase 1 — Prepara il server (Bazzite)
+### Fase 1 — Prepara il server
 
 Esegui questi passi sulla macchina che eseguirà Qdrant. Deve rimanere accesa quando le altre macchine lavorano.
 
@@ -317,7 +317,7 @@ Esegui questi passi sulla macchina che eseguirà Qdrant. Deve rimanere accesa qu
 ```bash
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
-# Nota il tuo hostname Tailscale (es. bazzite.tail.xxxxxxx.ts.net)
+# Nota il tuo hostname Tailscale (es. qdrant-server.tail.xxxxxxx.ts.net)
 tailscale ip -4
 ```
 
@@ -347,7 +347,7 @@ curl http://localhost:6333/health
 #### 1.3 — Installa Syncthing
 
 ```bash
-# Fedora / Bazzite
+# Fedora / RHEL
 sudo dnf install syncthing
 
 # Avvia e abilita il service
@@ -468,11 +468,11 @@ sudo tailscale up
 
 # Windows
 winget install Tailscale.Tailscale
-# Accedi con lo stesso account usato su Bazzite
+# Accedi con lo stesso account usato sul server
 
-# Verifica connettività con Bazzite
-ping <bazzite-tailscale-ip>
-curl http://<bazzite-tailscale-ip>:6333/health
+# Verifica connettività con il server
+ping <qdrant-server-ip>
+curl http://<qdrant-server-ip>:6333/health
 ```
 
 #### 3.2 — Installa Syncthing
@@ -490,12 +490,12 @@ syncthing   # oppure avvia come service
 # Interfaccia: http://localhost:8384
 ```
 
-#### 3.3 — Aggiungi Bazzite come dispositivo Syncthing
+#### 3.3 — Aggiungi il server come dispositivo Syncthing
 
 1. Su questa macchina: apri `http://localhost:8384` → **"Add Remote Device"**
-2. Inserisci il **Device ID** di Bazzite (visibile su Bazzite in Syncthing → "Show ID")
-3. Su Bazzite: accetta la richiesta di pairing che appare nell'interfaccia
-4. Su Bazzite: nella folder `openclaw-workspace`, abilita la condivisione con questo nuovo dispositivo
+2. Inserisci il **Device ID** del server (visibile sul server in Syncthing → "Show ID")
+3. Sul server: accetta la richiesta di pairing che appare nell'interfaccia
+4. Sul server: nella folder `openclaw-workspace`, abilita la condivisione con questo nuovo dispositivo
 5. Su questa macchina: accetta la folder condivisa → imposta il path locale (es. `~/.openclaw/workspace`)
 6. Attendi la sincronizzazione iniziale (può richiedere diversi minuti se il wiki è grande)
 
@@ -509,12 +509,12 @@ pip install -r requirements.txt
 
 #### 3.5 — Configura il wiki.config.json del client
 
-Il `wiki.config.json` arriverà via Syncthing da Bazzite (con `host: localhost`). Devi cambiare l'host:
+Il `wiki.config.json` arriverà via Syncthing dal server (con `host: localhost`). Devi cambiare l'host:
 
 ```bash
 # Usa lo script automatico
-./deploy/setup-client.sh <bazzite-tailscale-hostname>
-# Es: ./deploy/setup-client.sh bazzite.tail.xxxxxxx.ts.net
+./deploy/setup-client.sh <qdrant-server-hostname>
+# Es: ./deploy/setup-client.sh qdrant-server.tail.xxxxxxx.ts.net
 
 # Oppure manualmente
 python3 -c "
@@ -522,7 +522,7 @@ import json, os
 path = os.path.expanduser('~/.openclaw/workspace/wiki.config.json')
 with open(path) as f:
     cfg = json.load(f)
-cfg['qdrant']['host'] = '<bazzite-tailscale-hostname>'
+cfg['qdrant']['host'] = '<qdrant-server-hostname>'
 with open(path, 'w') as f:
     json.dump(cfg, f, indent=2)
 print('host aggiornato:', cfg['qdrant']['host'])
@@ -535,7 +535,7 @@ print('host aggiornato:', cfg['qdrant']['host'])
 
 ```bash
 # Test connettività Qdrant remoto
-curl http://<bazzite-tailscale-hostname>:6333/health
+curl http://<qdrant-server-hostname>:6333/health
 
 # Test query wiki
 python scripts/wiki_context.py \
@@ -618,7 +618,7 @@ ai-rag-wiki-memory-OpenClaw-distributed/
 │   ├── wiki-core.it.md               ← versione italiana
 │   └── wiki-setup.md                 ← istruzioni di setup per l'agente
 ├── deploy/
-│   ├── qdrant.service                ← unit systemd per Bazzite/Linux
+│   ├── qdrant.service                ← unit systemd per Linux (server)
 │   ├── syncthing-stignore            ← regole esclusione Syncthing (copiare in workspace/.stignore)
 │   └── setup-client.sh               ← script setup automatico per nuova macchina client
 ├── tests/
