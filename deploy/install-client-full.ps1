@@ -9,6 +9,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Refresh PATH from machine+user env — picks up apps installed in this session (e.g. via winget)
+$env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" +
+            [System.Environment]::GetEnvironmentVariable("PATH", "User")
+
 function Step($Name) {
     Write-Host ""
     Write-Host "=== $Name ==="
@@ -30,10 +34,11 @@ Need-Command "node"
 Need-Command "npm.cmd"
 
 try {
-    Invoke-WebRequest -UseBasicParsing -Uri "http://$QdrantHost`:6333/health" -TimeoutSec 10 | Out-Null
+    # GET / works on all Qdrant versions; /health was removed in >=1.18
+    Invoke-WebRequest -UseBasicParsing -Uri "http://$QdrantHost`:6333/" -TimeoutSec 10 | Out-Null
     Write-Host "Qdrant reachable: $QdrantHost`:6333"
 } catch {
-    throw "Qdrant is not reachable at http://$QdrantHost`:6333/health. Fix Tailscale/hostname/firewall before continuing."
+    throw "Qdrant is not reachable at http://$QdrantHost`:6333/. Fix Tailscale/hostname/firewall before continuing."
 }
 
 Step "Workspace bootstrap"
@@ -61,7 +66,9 @@ if (-not $Cfg.qdrant.port) {
 if (-not $Cfg.qdrant.collection) {
     $Cfg.qdrant | Add-Member -Force -MemberType NoteProperty -Name collection -Value "wiki_pages"
 }
-$Cfg | ConvertTo-Json -Depth 20 | Set-Content -Encoding UTF8 -Path $ConfigPath
+# Write without BOM — PowerShell's UTF8 adds a BOM that breaks Python json.load()
+$configJson = $Cfg | ConvertTo-Json -Depth 20
+[System.IO.File]::WriteAllText($ConfigPath, $configJson, [System.Text.UTF8Encoding]::new($false))
 Write-Host "wiki.config.json updated: qdrant.host = $QdrantHost"
 
 Step "Python dependencies"

@@ -15,3 +15,15 @@ memory/lancedb/
 __pycache__/
 *.pyc
 *.pyo
+
+# Repository internals — never sync these
+.git/
+node_modules/
+
+# Windows binaries
+*.exe
+*.dll
+
+# User-specific directories that must never sync
+backups/
+AppData/

@@ -217,13 +217,20 @@ export default definePluginEntry({
     // Exposed so OpenClaw agents can trigger it from chat
     if (typeof (api as Record<string, unknown>).registerTool === "function") {
       try {
-        (api as unknown as Record<string, (...args: unknown[]) => unknown>).registerTool(
-          "wiki_process_raw",
-          async (params: { project?: string }) => {
+        (api as unknown as {
+          registerTool: (tool: {
+            name: string;
+            description: string;
+            execute: (_id: string, params: Record<string, unknown>) => Promise<unknown>;
+          }) => void;
+        }).registerTool({
+          name: "wiki_process_raw",
+          description: "Re-index raw wiki files deposited in wiki-works/<project>/raw/ into the vector database.",
+          async execute(_id: string, params: Record<string, unknown>) {
             const wikiPy = join(dirname(wikiContextScript), "wiki.py");
             const args = ["process-raw", "--workspace", workspace];
             if (params?.project) {
-              args.push("--project", params.project);
+              args.push("--project", String(params.project));
             }
             try {
               const { stdout } = await execFileAsync(python, [wikiPy, ...args], {
@@ -234,8 +241,8 @@ export default definePluginEntry({
             } catch (err) {
               return { status: "error", message: String(err) };
             }
-          }
-        );
+          },
+        });
       } catch (e) {
         console.warn("[wiki-context-plugin] registerTool failed:", e);
       }

@@ -152,6 +152,7 @@ def inject_usage_instructions(workspace: Path, dry_run: bool = False) -> None:
 
 
 CANDIDATE_PATHS = [
+    Path.home() / ".openclaw" / "openclaw.json",   # Windows default
     Path.home() / ".openclaw" / "config.json",
     Path.home() / ".config" / "openclaw" / "config.json",
     Path(os.environ.get("APPDATA", "")) / "openclaw" / "config.json",
@@ -273,6 +274,12 @@ def main() -> None:
         },
     }
     entries["wiki-context-plugin"] = plugin_entry
+
+    # OpenClaw loads plugins only from directories listed in plugins.load.paths
+    plugin_path_str = str(plugin_path).replace("\\", "/")
+    load_paths = config["plugins"].setdefault("load", {}).setdefault("paths", [])
+    if plugin_path_str not in load_paths:
+        load_paths.append(plugin_path_str)
 
     if args.dry_run:
         print(f"DRY RUN — would write to: {config_path}\n")
