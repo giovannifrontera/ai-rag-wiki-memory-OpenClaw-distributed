@@ -562,9 +562,11 @@ def cmd_delete(args, cfg):
 
 
 def cmd_cleanup(args, cfg):
-    """Remove stale .tmp files from wiki/ and wiki-works/ (residui di ingest falliti)."""
+    """Remove stale .tmp files and safe-rename accidental .md.md files."""
     workspace = Path(args.workspace)
     removed = []
+    renamed = []
+    conflicts = []
     for root_name in ("wiki", "wiki-works"):
         root = workspace / root_name
         if not root.is_dir():
@@ -575,4 +577,22 @@ def cmd_cleanup(args, cfg):
                 removed.append(str(tmp.relative_to(workspace)).replace("\\", "/"))
             except OSError as e:
                 error("cleanup_failed", f"Cannot remove {tmp}: {e}", recoverable=True)
-    ok({"op": "cleanup", "removed": removed, "count": len(removed)})
+        for mdmd in root.rglob("*.md.md"):
+            target = mdmd.with_name(mdmd.name[:-3])
+            rel_src = str(mdmd.relative_to(workspace)).replace("\\", "/")
+            rel_dst = str(target.relative_to(workspace)).replace("\\", "/")
+            if target.exists():
+                conflicts.append({"source": rel_src, "target": rel_dst})
+                continue
+            try:
+                mdmd.rename(target)
+                renamed.append({"from": rel_src, "to": rel_dst})
+            except OSError as e:
+                error("cleanup_failed", f"Cannot rename {mdmd}: {e}", recoverable=True)
+    ok({
+        "op": "cleanup",
+        "removed": removed,
+        "renamed_mdmd": renamed,
+        "mdmd_conflicts": conflicts,
+        "count": len(removed),
+    })

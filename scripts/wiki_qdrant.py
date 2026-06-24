@@ -34,7 +34,12 @@ def _collection_name(config: dict, staging: bool = False) -> str:
 
 def get_db(config: dict) -> QdrantClient:
     cfg = config.get("qdrant", {})
-    return QdrantClient(host=cfg.get("host", "localhost"), port=cfg.get("port", 6333))
+    host = cfg.get("host", "localhost")
+    if cfg.get("path"):
+        return QdrantClient(path=cfg["path"])
+    if host == ":memory:":
+        return QdrantClient(":memory:")
+    return QdrantClient(host=host, port=cfg.get("port", 6333))
 
 
 def ensure_collection(client: QdrantClient, name: str) -> None:

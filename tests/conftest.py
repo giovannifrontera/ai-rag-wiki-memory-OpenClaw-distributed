@@ -19,6 +19,7 @@ def tmp_workspace(tmp_path):
         "pdf_inbox": {
             "project_default": "test"
         },
+        "embedding_model": "BAAI/bge-m3",
         "thresholds": {
             "index_token_budget": 4000,
             "staleness_days": 90,
@@ -40,6 +41,12 @@ def tmp_workspace(tmp_path):
         "lancedb": {
             "path": "memory/lancedb",
             "embedding_model": "BAAI/bge-m3"
+        },
+        "qdrant": {
+            "host": "localhost",
+            "port": 6333,
+            "collection": "wiki_pages",
+            "path": str(tmp_path / "memory" / "qdrant")
         }
     }
     (tmp_path / "wiki.config.json").write_text(json.dumps(config, indent=2))

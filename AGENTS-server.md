@@ -276,3 +276,15 @@ comma-separated keyword dumps (e.g. SEO spam injected via unfiltered `web_fetch`
 The ingest will fail with `spam_content_detected` before any embedding happens.
 
 If you need to remove already-embedded spam pages, use `wiki.py delete`.
+
+---
+
+## Related Setup Docs
+
+- Automated server bootstrap: `./deploy/setup-server.sh ~/.openclaw/workspace`
+- Qdrant install: [`docs/install-qdrant.md`](docs/install-qdrant.md)
+- Tailscale setup: [`docs/tailscale-setup.md`](docs/tailscale-setup.md)
+- Syncthing setup: [`docs/syncthing-setup.md`](docs/syncthing-setup.md)
+- LanceDB to Qdrant migration: [`docs/migrate-lancedb-to-qdrant.md`](docs/migrate-lancedb-to-qdrant.md)
+- Dashboard: [`docs/dashboard.md`](docs/dashboard.md)
+- Data quality cleanup: [`docs/data-quality.md`](docs/data-quality.md)

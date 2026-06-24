@@ -104,7 +104,7 @@ This project is a **direct evolution** of [`ai-longterm-wiki-memory-OpenClaw`](h
 | **Staging / rollback** | Upsert operations write to a `staging_*` collection before promoting to production |
 | **Migration script** | `migrate_lancedb_to_qdrant.py` transfers existing vectors without re-embedding |
 | **Syncthing conflict protocol** | Detection and guided resolution of `*.sync-conflict-*` files in `wiki-core.md` |
-| **Deploy files** | `deploy/qdrant.service` (systemd Linux), `deploy/setup-client.sh`, `deploy/syncthing-stignore` |
+| **Deploy files** | `deploy/qdrant.service`, `deploy/qdrant-podman.service`, `deploy/setup-server.sh`, `deploy/setup-client.sh`, `deploy/syncthing-stignore` |
 | **Cross-platform paths** | No absolute paths with usernames — everything uses `~` or relative paths |
 
 ---
@@ -156,6 +156,12 @@ pip install -r requirements.txt
 ```
 
 ### 2. Install and start Qdrant on the server
+
+Detailed options are in [`docs/install-qdrant.md`](docs/install-qdrant.md). For a guided server bootstrap, run:
+
+```bash
+./deploy/setup-server.sh ~/.openclaw/workspace
+```
 
 ```bash
 # Download the binary
@@ -211,6 +217,8 @@ Copy `wiki.config.json` to your workspace and edit it:
 > **On a client:** change `"host": "localhost"` to the server's Tailscale hostname (e.g. `"host": "qdrant-server.tail"`). Use `deploy/setup-client.sh` to automate this.
 
 ### 4. Configure Syncthing
+
+Detailed setup is in [`docs/syncthing-setup.md`](docs/syncthing-setup.md). Tailscale setup is in [`docs/tailscale-setup.md`](docs/tailscale-setup.md).
 
 ```bash
 # Start Syncthing
