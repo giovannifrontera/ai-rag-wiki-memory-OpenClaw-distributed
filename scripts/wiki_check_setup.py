@@ -77,6 +77,23 @@ def check(workspace: str) -> list[str]:
                 except Exception as e:
                     issues.append(f"LanceDB error: {e}")
 
+    # Stale failed session check
+    session_path = ws / "wiki-session.md"
+    if session_path.exists():
+        try:
+            import datetime as _dt
+            age_days = (_dt.datetime.now().timestamp() - session_path.stat().st_mtime) / 86400
+            if age_days > 7:
+                for line in session_path.read_text(encoding="utf-8").splitlines():
+                    if line.startswith("status:") and "failed" in line.lower():
+                        issues.append(
+                            f"wiki-session.md shows 'failed' status for {int(age_days)} days — "
+                            "run: wiki.py session-update --op ingest --status ok --detail '{}'"
+                        )
+                        break
+        except Exception:
+            pass
+
     return issues
 
 

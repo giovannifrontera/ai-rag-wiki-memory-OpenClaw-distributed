@@ -1,4 +1,4 @@
-"""Graph builder — read-only. Builds nodes + edges from filesystem and LanceDB."""
+"""Graph builder — read-only. Builds nodes + edges from filesystem and Qdrant."""
 
 import re
 import time
@@ -13,14 +13,11 @@ _EXCLUDED_FILES = {"index.md", "log.md"}
 _EXCLUDED_DIRS = {"raw", ".archive"}
 
 try:
-    from wiki_lancedb import (
-        get_db as _lancedb_get_db,
-        ensure_table as _lancedb_ensure_table,
-        query_similar as _lancedb_query_similar,
-    )
-    _LANCEDB_AVAILABLE = True
+    from wiki_qdrant import get_db as _qdrant_get_db, query_similar as _qdrant_query_similar
+    from qdrant_client.models import Filter, FieldCondition, MatchValue
+    _QDRANT_AVAILABLE = True
 except ImportError:
-    _LANCEDB_AVAILABLE = False
+    _QDRANT_AVAILABLE = False
 
 
 def mark_dirty() -> None:
@@ -149,15 +146,36 @@ def _explicit_edges(file_texts: list[tuple[Path, str]], node_ids: set[str], work
 
 def _semantic_edges(workspace: str, cfg: dict, files: list[Path], node_ids: set[str]) -> list[dict]:
     import numpy as np
-    if not _LANCEDB_AVAILABLE:
+    from collections import defaultdict
+    if not _QDRANT_AVAILABLE:
         return []
 
-    db_path = str(Path(workspace) / cfg["lancedb"]["path"])
-    db = _lancedb_get_db(db_path)
-    table = _lancedb_ensure_table(db)
-    df = table.to_pandas()
-    if df.empty:
+    client = _qdrant_get_db(cfg)
+    coll = cfg.get("qdrant", {}).get("collection", "wiki_pages")
+
+    # Fetch all vectors in one pass, group by path, compute avg per page
+    all_records: list = []
+    offset = None
+    while True:
+        batch, offset = client.scroll(
+            collection_name=coll, limit=200, offset=offset,
+            with_vectors=True, with_payload=True,
+        )
+        all_records.extend(batch)
+        if offset is None:
+            break
+
+    if not all_records:
         return []
+
+    path_chunks: dict = defaultdict(list)
+    for r in all_records:
+        path_chunks[r.payload["path"]].append(r.vector)
+
+    path_to_vec = {
+        path: np.stack(vecs).mean(axis=0).tolist()
+        for path, vecs in path_chunks.items()
+    }
 
     edges: list[dict] = []
     seen: set[tuple] = set()
@@ -165,14 +183,11 @@ def _semantic_edges(workspace: str, cfg: dict, files: list[Path], node_ids: set[
     for p in files:
         nid = _node_id(p, workspace)
         rel_path = str(p.relative_to(Path(workspace))).replace("\\", "/")
-        page_rows = df[df["path"] == rel_path]
-        if page_rows.empty:
+        vec = path_to_vec.get(rel_path)
+        if vec is None:
             continue
 
-        vecs = np.stack(page_rows["vector"].values)
-        avg_vec = vecs.mean(axis=0).tolist()
-
-        results = _lancedb_query_similar(db, avg_vec, k=6)
+        results = _qdrant_query_similar(client, cfg, vec, k=6)
         for r in results:
             target_path = r.get("path", "")
             target_nid = target_path.replace("\\", "/").removesuffix(".md")

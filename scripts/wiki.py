@@ -146,6 +146,9 @@ def main():
     p_behavior_log.add_argument("--workspace", required=True)
     p_behavior_log.add_argument("--event", required=True)
 
+    p_cleanup = sub.add_parser("cleanup", help="Remove stale .tmp files from wiki/ and wiki-works/")
+    p_cleanup.add_argument("--workspace", required=True)
+
     p_self_reflect = sub.add_parser("self-reflect")
     p_self_reflect.add_argument("--workspace", required=True)
 
@@ -169,7 +172,7 @@ def dispatch(args, cfg):
                                 cmd_rebuild, cmd_session_update,
                                 cmd_scan_inbox, cmd_ingest_pdf, cmd_serve,
                                 cmd_behavior_log, cmd_self_reflect,
-                                cmd_process_raw)
+                                cmd_process_raw, cmd_cleanup)
     commands = {
         "ingest": cmd_ingest,
         "query": cmd_query,
@@ -183,6 +186,7 @@ def dispatch(args, cfg):
         "behavior-log": cmd_behavior_log,
         "self-reflect": cmd_self_reflect,
         "process-raw": cmd_process_raw,
+        "cleanup": cmd_cleanup,
     }
     commands[args.command](args, cfg)
 

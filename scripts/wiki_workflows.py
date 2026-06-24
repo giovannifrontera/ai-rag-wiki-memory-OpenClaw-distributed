@@ -518,3 +518,20 @@ def cmd_self_reflect(args, cfg):
     from wiki_selfreflect import run_self_reflect
     result = run_self_reflect(args.workspace, cfg)
     ok(result)
+
+
+def cmd_cleanup(args, cfg):
+    """Remove stale .tmp files from wiki/ and wiki-works/ (residui di ingest falliti)."""
+    workspace = Path(args.workspace)
+    removed = []
+    for root_name in ("wiki", "wiki-works"):
+        root = workspace / root_name
+        if not root.is_dir():
+            continue
+        for tmp in root.rglob("*.tmp"):
+            try:
+                tmp.unlink()
+                removed.append(str(tmp.relative_to(workspace)).replace("\\", "/"))
+            except OSError as e:
+                error("cleanup_failed", f"Cannot remove {tmp}: {e}", recoverable=True)
+    ok({"op": "cleanup", "removed": removed, "count": len(removed)})

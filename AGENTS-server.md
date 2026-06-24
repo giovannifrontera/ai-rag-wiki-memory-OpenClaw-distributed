@@ -32,6 +32,15 @@ rm -rf /tmp/wiki-repo
 
 Edit `~/.openclaw/workspace/wiki.config.json` and set `qdrant.host` to `localhost` (server) or your Tailscale hostname (client).
 
+**Optional but recommended:** set `HF_TOKEN` to avoid Hugging Face anonymous rate limits when downloading the embedding model (`BAAI/bge-m3`):
+
+```bash
+echo 'export HF_TOKEN=hf_...' >> ~/.bashrc   # or ~/.zshrc
+# Get your token at: https://huggingface.co/settings/tokens
+```
+
+The model is cached after the first download (~1.2 GB in `~/.cache/huggingface/`), so subsequent starts are fast.
+
 To run Qdrant:
 - **Native binary**: use `deploy/qdrant.service`
 - **Podman (Fedora/Bazzite)**: use `deploy/qdrant-podman.service`

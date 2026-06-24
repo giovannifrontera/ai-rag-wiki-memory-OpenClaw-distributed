@@ -15,11 +15,12 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 sys.path.insert(0, str(Path(__file__).parent))
 import wiki_graph  # noqa: E402
 try:
-    import wiki_lancedb as _wiki_lancedb
+    from wiki_qdrant import get_db as _qdrant_get_db, query_similar as _qdrant_query_similar
+    from qdrant_client.models import Filter, FieldCondition, MatchValue
     from wiki_index import EXCLUDED_NAMES as _EXCLUDED_NAMES
-    _LANCEDB_IMPORT_OK = True
+    _QDRANT_IMPORT_OK = True
 except ImportError:
-    _LANCEDB_IMPORT_OK = False
+    _QDRANT_IMPORT_OK = False
     _EXCLUDED_NAMES: set = set()
 
 _workspace: str = ""
@@ -172,31 +173,34 @@ def _build_stats() -> dict:
     unembedded_pages: list = []
     total_chunks = 0
     embedding_coverage_pct = 0.0
-    if _LANCEDB_IMPORT_OK:
+    if _QDRANT_IMPORT_OK:
         try:
-            lancedb_path = os.path.join(
-                _workspace, _cfg.get("lancedb", {}).get("path", "memory/lancedb")
-            )
-            db = _wiki_lancedb.get_db(lancedb_path)
-            table = _wiki_lancedb.ensure_table(db)
-            df = table.to_pandas()
-            total_chunks = len(df)
-            embedded_paths = set(df["path"].unique())
-            total_pages = len(graph_data.get("nodes", []))
-            if total_pages > 0:
-                embedding_coverage_pct = round(len(embedded_paths) / total_pages * 100, 1)
-            for root_name in ("wiki", "wiki-works"):
-                root = Path(_workspace) / root_name
-                if not root.is_dir():
-                    continue
-                for md_file in root.rglob("*.md"):
-                    if md_file.name in _EXCLUDED_NAMES:
+            client = _qdrant_get_db(_cfg)
+            coll = _cfg.get("qdrant", {}).get("collection", "wiki_pages")
+            existing = [c.name for c in client.get_collections().collections]
+            if coll in existing:
+                total_chunks = client.count(coll).count
+                records, _ = client.scroll(
+                    collection_name=coll,
+                    scroll_filter=Filter(must=[FieldCondition(key="chunk_id", match=MatchValue(value=0))]),
+                    limit=10000, with_payload=True, with_vectors=False,
+                )
+                embedded_paths = {r.payload["path"] for r in records}
+                total_pages = len(graph_data.get("nodes", []))
+                if total_pages > 0:
+                    embedding_coverage_pct = round(len(embedded_paths) / total_pages * 100, 1)
+                for root_name in ("wiki", "wiki-works"):
+                    root = Path(_workspace) / root_name
+                    if not root.is_dir():
                         continue
-                    if "raw" in md_file.parts or ".archive" in md_file.parts:
-                        continue
-                    rel = os.path.relpath(str(md_file), _workspace).replace("\\", "/")
-                    if rel not in embedded_paths:
-                        unembedded_pages.append({"path": rel, "title": rel})
+                    for md_file in root.rglob("*.md"):
+                        if md_file.name in _EXCLUDED_NAMES:
+                            continue
+                        if "raw" in md_file.parts or ".archive" in md_file.parts:
+                            continue
+                        rel = os.path.relpath(str(md_file), _workspace).replace("\\", "/")
+                        if rel not in embedded_paths:
+                            unembedded_pages.append({"path": rel, "title": rel})
         except Exception:
             pass
 
@@ -257,7 +261,7 @@ async def _get_embed_model():
             for _name in ("sentence_transformers", "transformers", "huggingface_hub"):
                 _logging.getLogger(_name).setLevel(_logging.ERROR)
             from sentence_transformers import SentenceTransformer
-            model_name = _cfg.get("lancedb", {}).get("embedding_model", "BAAI/bge-m3")
+            model_name = _cfg.get("embedding_model", "BAAI/bge-m3")
             loop = asyncio.get_event_loop()
             _embed_model = await loop.run_in_executor(
                 None, lambda: SentenceTransformer(model_name, device="cpu")
@@ -275,7 +279,7 @@ async def api_context(request: Request, q: str = "", k: int = 3, max_chars: int 
     peer = (request.client.host if request.client else None)
     if peer not in _LOCALHOST_ADDRS:
         return PlainTextResponse("", status_code=403)
-    if not q.strip() or not _LANCEDB_IMPORT_OK or not _workspace:
+    if not q.strip() or not _QDRANT_IMPORT_OK or not _workspace:
         return PlainTextResponse("", status_code=200)
 
     import fnmatch as _fnmatch
@@ -284,13 +288,8 @@ async def api_context(request: Request, q: str = "", k: int = 3, max_chars: int 
         vector = await asyncio.get_event_loop().run_in_executor(
             None, lambda: model.encode(q, normalize_embeddings=True).tolist()
         )
-        lancedb_path = os.path.join(_workspace, _cfg.get("lancedb", {}).get("path", "memory/lancedb"))
-        db = _wiki_lancedb.get_db(lancedb_path)
-        existing_tables = getattr(db.list_tables(), "tables", None) or list(db.list_tables())
-        if "wiki_pages" not in existing_tables:
-            return PlainTextResponse("", status_code=200)
-        table = db.open_table("wiki_pages")
-        raw = table.search(vector).limit(k * 4).to_list()
+        client = _qdrant_get_db(_cfg)
+        raw = _qdrant_query_similar(client, _cfg, vector, k=k * 4)
 
         exclude_patterns = _cfg.get("exclude_from_index", [])
         seen: dict = {}
