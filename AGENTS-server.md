@@ -238,11 +238,41 @@ wiki.py index          --workspace <path>
 wiki.py rebuild        --workspace <path>          ← SERVER ONLY
 wiki.py scan-inbox     --workspace <path>
 wiki.py ingest-pdf     --workspace <path> --file <path|url>
+wiki.py process-raw    --workspace <path> [--project <name>]
 wiki.py serve          --workspace <path> [--port 7331] [--no-auth]
 wiki.py behavior-log   --workspace <path> --event "<correction>"
 wiki.py self-reflect   --workspace <path>
 wiki.py session-update --workspace <path> --op <type> --status <ok|failed|...>
+wiki.py delete         --workspace <path> --page <relative/path.md>
+wiki.py cleanup        --workspace <path>
 
 wiki_context.py        --workspace <path> --q <string> [--k 3] [--max-chars 600]
 migrate_lancedb_to_qdrant.py --lancedb <path> --config <path> [--dry-run]
 ```
+
+### delete
+
+Removes a wiki page permanently: deletes the `.md` file and all its Qdrant vectors.
+Use this for garbage pages, duplicates, or spam-injected content.
+
+```bash
+python scripts/wiki.py delete \
+    --workspace ~/.openclaw/workspace \
+    --page wiki-works/darkweb/luciferian-witchcraft-michael-ford.md
+```
+
+### cleanup
+
+Removes all stale `.tmp` files from `wiki/` and `wiki-works/` (residues of failed ingests).
+
+```bash
+python scripts/wiki.py cleanup --workspace ~/.openclaw/workspace
+```
+
+### Spam / keyword-dump detection
+
+`wiki.py ingest` automatically rejects files where ≥30% of content lines look like
+comma-separated keyword dumps (e.g. SEO spam injected via unfiltered `web_fetch`).
+The ingest will fail with `spam_content_detected` before any embedding happens.
+
+If you need to remove already-embedded spam pages, use `wiki.py delete`.

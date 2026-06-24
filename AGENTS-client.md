@@ -164,9 +164,13 @@ wiki.py lint           --workspace <path> [--full]
 wiki.py index          --workspace <path>
 wiki.py scan-inbox     --workspace <path>
 wiki.py ingest-pdf     --workspace <path> --file <path|url>
+wiki.py process-raw    --workspace <path> [--project <name>]
 wiki.py serve          --workspace <path> [--port 7331] [--no-auth]
 wiki.py behavior-log   --workspace <path> --event "<correction>"
 wiki.py self-reflect   --workspace <path>
+wiki.py cleanup        --workspace <path>
 
 wiki_context.py        --workspace <path> --q <string> [--k 3] [--max-chars 600]
 ```
+
+`delete` and `rebuild` are server-only operations — run them on the server machine.
