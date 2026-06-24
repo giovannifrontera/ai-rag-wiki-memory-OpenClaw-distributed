@@ -17,6 +17,24 @@ This is a **client machine**: it does not run Qdrant locally. It connects to the
 
 ---
 
+## Install / Repair
+
+For full client setup, read `skills/wiki-setup.md` and prefer the blind installer:
+
+```bash
+./deploy/install-client-full.sh <qdrant-server-hostname-or-tailnet-ip>
+```
+
+On Windows PowerShell:
+
+```powershell
+.\deploy\install-client-full.ps1 -QdrantHost <qdrant-server-hostname-or-tailnet-ip>
+```
+
+Use `deploy/setup-client.sh` only for lightweight workspace/config bootstrap.
+
+---
+
 ## Health check — run before every session
 
 ```bash

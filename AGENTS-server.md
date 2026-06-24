@@ -281,7 +281,8 @@ If you need to remove already-embedded spam pages, use `wiki.py delete`.
 
 ## Related Setup Docs
 
-- Automated server bootstrap: `./deploy/setup-server.sh ~/.openclaw/workspace`
+- Full server install/verify: `./deploy/install-server-full.sh ~/.openclaw/workspace`
+- Lightweight server bootstrap only: `./deploy/setup-server.sh ~/.openclaw/workspace`
 - Qdrant install: [`docs/install-qdrant.md`](docs/install-qdrant.md)
 - Tailscale setup: [`docs/tailscale-setup.md`](docs/tailscale-setup.md)
 - Syncthing setup: [`docs/syncthing-setup.md`](docs/syncthing-setup.md)

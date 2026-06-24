@@ -26,6 +26,34 @@ Then read the correct file:
 
 ---
 
+## Installation / Repair Entry Point
+
+If the user asks to install, repair, bootstrap, or verify the toolchain, read
+[`skills/wiki-setup.md`](skills/wiki-setup.md) before doing anything else.
+
+Use the full installers as the primary path:
+
+```bash
+# Server: Qdrant + workspace + Syncthing + watchdog + OpenClaw plugin + verification
+./deploy/install-server-full.sh
+
+# Client: workspace + remote Qdrant config + deps + OpenClaw plugin + verification
+./deploy/install-client-full.sh <qdrant-server-hostname-or-tailnet-ip>
+```
+
+On Windows clients, use:
+
+```powershell
+.\deploy\install-client-full.ps1 -QdrantHost <qdrant-server-hostname-or-tailnet-ip>
+```
+
+Use `deploy/setup-server.sh` or `deploy/setup-client.sh` only for lightweight
+workspace/config bootstrap when the user explicitly does not want full install.
+If a full installer fails, stop and report the failing section/output; do not
+continue manually unless the user asks.
+
+---
+
 ## Key Differences: Server vs Client
 
 | | Server | Client |
@@ -66,11 +94,16 @@ scripts/
 └── ...
 
 deploy/
+├── install-server-full.sh        # full server install/verify path
+├── install-client-full.sh        # full Linux/macOS/Git Bash client install/verify path
+├── install-client-full.ps1       # full Windows PowerShell client install/verify path
+├── setup-server.sh               # lightweight server workspace bootstrap
+├── setup-client.sh               # lightweight client workspace/config bootstrap
+├── watch-sync.sh                 # server Syncthing ingest watchdog
+├── wiki-sync-watchdog.service    # user systemd service for watch-sync.sh
 ├── qdrant.service                # native systemd unit for the server
 ├── qdrant-podman.service         # rootless Podman unit for the server
-├── setup-server.sh               # automated server setup
-├── syncthing-stignore            # copy to workspace/.stignore
-└── setup-client.sh               # automated client setup
+└── syncthing-stignore            # copy to workspace/.stignore
 
 docs/
 ├── prerequisites.md
@@ -83,5 +116,6 @@ docs/
 
 AGENTS-server.md                  # instructions for the server machine
 AGENTS-client.md                  # instructions for client machines
+skills/wiki-setup.md              # rigid install/repair/verification protocol
 skills/wiki-core.md               # agent protocol, all machines read this
 ```
