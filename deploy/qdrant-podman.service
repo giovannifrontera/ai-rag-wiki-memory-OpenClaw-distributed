@@ -1,4 +1,4 @@
-# Quadrant systemd unit for Podman (rootless)
+# Qdrant systemd unit for Podman (rootless)
 # Generated with: podman generate systemd --new --name qdrant
 # Place in: ~/.config/systemd/user/qdrant-podman.service
 # Enable with: systemctl --user enable --now qdrant-podman
@@ -19,7 +19,7 @@ ExecStart=/usr/bin/podman run \
     --rm \
     -p 6333:6333 \
     -p 6334:6334 \
-    -v %h/.qdrant/storage:/qdrant/storage:Z \
+    -v qdrant_data:/qdrant/storage:Z \
     docker.io/qdrant/qdrant:latest
 ExecStop=/usr/bin/podman stop qdrant
 
