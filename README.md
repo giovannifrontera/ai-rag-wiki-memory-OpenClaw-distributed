@@ -104,7 +104,7 @@ This project is a **direct evolution** of [`ai-longterm-wiki-memory-OpenClaw`](h
 | **Staging / rollback** | Upsert operations write to a `staging_*` collection before promoting to production |
 | **Migration script** | `migrate_lancedb_to_qdrant.py` transfers existing vectors without re-embedding |
 | **Syncthing conflict protocol** | Detection and guided resolution of `*.sync-conflict-*` files in `wiki-core.md` |
-| **Deploy files** | `deploy/qdrant.service`, `deploy/qdrant-podman.service`, `deploy/setup-server.sh`, `deploy/setup-client.sh`, `deploy/syncthing-stignore` |
+| **Deploy files** | `deploy/qdrant.service`, `deploy/qdrant-podman.service`, `deploy/setup-server.sh`, `deploy/setup-client.sh`, `deploy/watch-sync.sh`, `deploy/wiki-sync-watchdog.service`, `deploy/syncthing-stignore` |
 | **Cross-platform paths** | No absolute paths with usernames — everything uses `~` or relative paths |
 
 ---

@@ -288,3 +288,5 @@ If you need to remove already-embedded spam pages, use `wiki.py delete`.
 - LanceDB to Qdrant migration: [`docs/migrate-lancedb-to-qdrant.md`](docs/migrate-lancedb-to-qdrant.md)
 - Dashboard: [`docs/dashboard.md`](docs/dashboard.md)
 - Data quality cleanup: [`docs/data-quality.md`](docs/data-quality.md)
+
+For offline laptop edits, enable `deploy/wiki-sync-watchdog.service` on the server. Syncthing copies the `.md` file back to the server; the watchdog re-ingests it into Qdrant and records the content hash in `.synced-ingested.json`.

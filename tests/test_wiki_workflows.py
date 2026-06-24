@@ -12,17 +12,18 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 def test_lint_status_written(tmp_workspace, monkeypatch):
     import wiki_workflows
 
-    class FakeTable:
-        def to_pandas(self):
-            import pandas as pd
-            return pd.DataFrame({"path": []})
-        def delete(self, expr):
-            pass
+    class FakeQdrant:
+        def scroll(self, **kwargs):
+            return [], None
 
-    monkeypatch.setattr(wiki_workflows, "get_db", lambda path: object())
-    monkeypatch.setattr(wiki_workflows, "ensure_table", lambda db, table_name="wiki_pages": FakeTable())
-    monkeypatch.setattr(wiki_workflows, "detect_renames", lambda db, fs_paths, workspace: [])
-    monkeypatch.setattr(wiki_workflows, "find_semantic_duplicates", lambda db, auto_threshold, warn_threshold: [])
+    monkeypatch.setattr(wiki_workflows, "get_db", lambda cfg: FakeQdrant())
+    monkeypatch.setattr(wiki_workflows, "ensure_collection", lambda db, name: None)
+    monkeypatch.setattr(wiki_workflows, "detect_renames", lambda db, cfg, fs_paths, workspace: [])
+    monkeypatch.setattr(
+        wiki_workflows,
+        "find_semantic_duplicates",
+        lambda db, cfg, auto_threshold, warn_threshold: [],
+    )
 
     cfg = json.loads((tmp_workspace / "wiki.config.json").read_text())
 
@@ -71,17 +72,18 @@ def test_lint_full_reports_semantic_duplicates(tmp_workspace, monkeypatch):
          "similarity": 0.95, "action": "auto_merge"},
     ]
 
-    class FakeTable:
-        def to_pandas(self):
-            import pandas as pd
-            return pd.DataFrame({"path": [], "chunk_id": [], "page_hash": []})
-        def delete(self, expr):
-            pass
+    class FakeQdrant:
+        def scroll(self, **kwargs):
+            return [], None
 
-    monkeypatch.setattr(wiki_workflows, "get_db", lambda path: object())
-    monkeypatch.setattr(wiki_workflows, "ensure_table", lambda db, table_name="wiki_pages": FakeTable())
-    monkeypatch.setattr(wiki_workflows, "detect_renames", lambda db, fs_paths, workspace: [])
-    monkeypatch.setattr(wiki_workflows, "find_semantic_duplicates", lambda db, auto_threshold, warn_threshold: fake_duplicates)
+    monkeypatch.setattr(wiki_workflows, "get_db", lambda cfg: FakeQdrant())
+    monkeypatch.setattr(wiki_workflows, "ensure_collection", lambda db, name: None)
+    monkeypatch.setattr(wiki_workflows, "detect_renames", lambda db, cfg, fs_paths, workspace: [])
+    monkeypatch.setattr(
+        wiki_workflows,
+        "find_semantic_duplicates",
+        lambda db, cfg, auto_threshold, warn_threshold: fake_duplicates,
+    )
 
     cfg = json.loads((tmp_workspace / "wiki.config.json").read_text())
 
@@ -215,3 +217,51 @@ def test_process_raw_no_files_is_a_noop(tmp_workspace):
 
     # Non deve sollevare eccezioni
     cmd_process_raw(Args(), cfg)
+
+
+def test_ingest_existing_md_reindexes_without_moving(tmp_workspace, monkeypatch):
+    import io
+    import sys
+    import wiki_workflows
+
+    page = tmp_workspace / "wiki" / "synced-page.md"
+    page.write_text("# Synced Page\nContent from offline laptop.\n", encoding="utf-8")
+    upserts = []
+
+    monkeypatch.setattr(wiki_workflows, "get_db", lambda cfg: object())
+    monkeypatch.setattr(
+        wiki_workflows,
+        "embed_file",
+        lambda path, **kwargs: [{
+            "chunk_id": 0,
+            "chunk_text": Path(path).read_text(encoding="utf-8"),
+            "content_hash": "content-hash",
+            "page_hash": "page-hash",
+            "vector": [0.1] * 1024,
+        }],
+    )
+    monkeypatch.setattr(
+        wiki_workflows,
+        "upsert",
+        lambda db, cfg, rel, chunks, staging=False: upserts.append((rel, staging)),
+    )
+    monkeypatch.setattr(wiki_workflows, "promote_staging", lambda db, cfg: None)
+    monkeypatch.setattr(wiki_workflows, "rollback_staging", lambda db, cfg: None)
+    monkeypatch.setattr(wiki_workflows, "_mini_lint", lambda workspace, written, db, cfg: "ok")
+
+    class Args:
+        workspace = str(tmp_workspace)
+        pages = "wiki/synced-page.md"
+        log = "test synced ingest"
+
+    captured = io.StringIO()
+    monkeypatch.setattr(sys, "stdout", captured)
+
+    cfg = json.loads((tmp_workspace / "wiki.config.json").read_text())
+    wiki_workflows.cmd_ingest(Args(), cfg)
+
+    output = json.loads(captured.getvalue())
+    assert output["status"] == "ok"
+    assert page.exists()
+    assert page.read_text(encoding="utf-8").startswith("# Synced Page")
+    assert upserts == [("wiki/synced-page.md", True)]

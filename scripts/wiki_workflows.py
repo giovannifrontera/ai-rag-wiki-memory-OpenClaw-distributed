@@ -90,7 +90,7 @@ def cmd_ingest(args, cfg):
     try:
         for tmp_path in tmp_paths:
             if not os.path.exists(tmp_path):
-                raise FileNotFoundError(f"File .tmp non trovato: {tmp_path}")
+                raise FileNotFoundError(f"File non trovato: {tmp_path}")
 
         for tmp_path in tmp_paths:
             rel_final = os.path.relpath(tmp_path, workspace).replace("\\", "/")
@@ -108,9 +108,12 @@ def cmd_ingest(args, cfg):
                 model_name=cfg["embedding_model"],
             )
             upsert(db, cfg, rel_final, chunks, staging=True)
-            final_paths.append((tmp_path, os.path.join(workspace, rel_final.replace("/", os.sep))))
+            final_path = os.path.join(workspace, rel_final.replace("/", os.sep))
+            final_paths.append((tmp_path, final_path))
 
         for tmp_path, final_path in final_paths:
+            if os.path.abspath(tmp_path) == os.path.abspath(final_path):
+                continue
             os.makedirs(os.path.dirname(final_path), exist_ok=True)
             shutil.move(tmp_path, final_path)
             moved.append((tmp_path, final_path))

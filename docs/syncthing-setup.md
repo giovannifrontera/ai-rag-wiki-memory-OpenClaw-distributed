@@ -87,3 +87,39 @@ If a file named `*.sync-conflict-*` appears under `wiki/` or `wiki-works/`, stop
 python scripts/wiki.py lint --workspace ~/.openclaw/workspace --full
 python scripts/wiki.py session-update --workspace ~/.openclaw/workspace --op sync-conflict --status ok
 ```
+
+## Server Ingest Watchdog
+
+Syncthing only synchronizes Markdown files. It does not update Qdrant when a laptop creates or edits a page while offline and later reconnects. On the server, enable the bundled watchdog so every synced `.md` page is re-ingested into Qdrant.
+
+Install the dependency:
+
+```bash
+sudo apt-get install inotify-tools
+```
+
+If you ran `deploy/setup-server.sh`, the script and service are already copied into the workspace. Enable the user service:
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp ~/.openclaw/workspace/deploy/wiki-sync-watchdog.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now wiki-sync-watchdog
+loginctl enable-linger "$USER"
+```
+
+Check logs:
+
+```bash
+journalctl --user -u wiki-sync-watchdog -f
+```
+
+The watchdog monitors `wiki/` and `wiki-works/`, ignores `.tmp`, `*.sync-conflict-*`, and `wiki/index.md`, then runs:
+
+```bash
+python3 ~/.openclaw/workspace/scripts/wiki.py ingest \
+  --workspace ~/.openclaw/workspace \
+  --pages <relative-md-path>
+```
+
+It stores processed file hashes in `.synced-ingested.json`, so unchanged files do not trigger repeated ingest. `wiki.py ingest` replaces vectors by path, so reconnect races with a laptop-side ingest do not create duplicate vectors.

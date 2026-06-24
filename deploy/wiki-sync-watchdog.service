@@ -1,0 +1,13 @@
+[Unit]
+Description=Distributed wiki Syncthing ingest watchdog
+After=network-online.target qdrant-podman.service qdrant.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=10
+ExecStart=%h/.openclaw/workspace/scripts/watch-sync.sh %h/.openclaw/workspace
+
+[Install]
+WantedBy=default.target

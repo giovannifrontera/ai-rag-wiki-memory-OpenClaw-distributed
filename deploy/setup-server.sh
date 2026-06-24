@@ -16,9 +16,12 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 1
 fi
 
-mkdir -p "$WORKSPACE/scripts" "$WORKSPACE/skills" "$WORKSPACE/wiki" "$WORKSPACE/wiki-works"
+mkdir -p "$WORKSPACE/scripts" "$WORKSPACE/skills" "$WORKSPACE/wiki" "$WORKSPACE/wiki-works" "$WORKSPACE/deploy"
 cp -R "$REPO_ROOT/scripts/." "$WORKSPACE/scripts/"
 cp -R "$REPO_ROOT/skills/." "$WORKSPACE/skills/"
+cp "$REPO_ROOT/deploy/watch-sync.sh" "$WORKSPACE/scripts/watch-sync.sh"
+cp "$REPO_ROOT/deploy/wiki-sync-watchdog.service" "$WORKSPACE/deploy/wiki-sync-watchdog.service"
+chmod +x "$WORKSPACE/scripts/watch-sync.sh"
 
 if [ ! -f "$WORKSPACE/wiki.config.json" ]; then
   cp "$REPO_ROOT/wiki.config.json" "$WORKSPACE/wiki.config.json"
@@ -70,3 +73,9 @@ echo "1. Configure Tailscale: docs/tailscale-setup.md"
 echo "2. Configure Syncthing for $WORKSPACE: docs/syncthing-setup.md"
 echo "3. Verify: python3 '$WORKSPACE/scripts/wiki_check_setup.py' --workspace '$WORKSPACE'"
 echo "4. If migrating from LanceDB: docs/migrate-lancedb-to-qdrant.md"
+echo "5. Optional but recommended: enable the Syncthing ingest watchdog:"
+echo "   sudo apt-get install inotify-tools"
+echo "   mkdir -p ~/.config/systemd/user"
+echo "   cp '$WORKSPACE/deploy/wiki-sync-watchdog.service' ~/.config/systemd/user/"
+echo "   systemctl --user daemon-reload"
+echo "   systemctl --user enable --now wiki-sync-watchdog"
