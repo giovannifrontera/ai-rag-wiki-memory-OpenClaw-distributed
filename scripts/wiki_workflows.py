@@ -55,6 +55,18 @@ def _mini_lint(workspace: str, written_paths: list, client, cfg: dict) -> str:
     return "ok"
 
 
+def _is_spam_content(text: str, spam_line_threshold: float = 0.30) -> bool:
+    """True if ≥30% of content lines look like comma-separated keyword dumps."""
+    lines = [l for l in text.splitlines() if l.strip() and not l.startswith("#")]
+    if len(lines) < 5:
+        return False
+    spam_lines = sum(
+        1 for line in lines
+        if (words := line.split()) and len(words) >= 6 and line.count(",") / len(words) >= 0.35
+    )
+    return spam_lines / len(lines) >= spam_line_threshold
+
+
 def cmd_ingest(args, cfg):
     workspace = args.workspace
     lock_path = os.path.join(workspace, ".wiki-lock")
@@ -84,6 +96,10 @@ def cmd_ingest(args, cfg):
             rel_final = os.path.relpath(tmp_path, workspace).replace("\\", "/")
             if rel_final.endswith(".tmp"):
                 rel_final = rel_final[:-4]
+            with open(tmp_path, encoding="utf-8") as _f:
+                _content = _f.read()
+            if _is_spam_content(_content):
+                raise ValueError(f"Spam/keyword-dump content detected in {rel_final} — ingest rejected")
             chunks = embed_file(
                 tmp_path,
                 chunk_size=thresholds["chunk_size_tokens"],
@@ -518,6 +534,31 @@ def cmd_self_reflect(args, cfg):
     from wiki_selfreflect import run_self_reflect
     result = run_self_reflect(args.workspace, cfg)
     ok(result)
+
+
+def cmd_delete(args, cfg):
+    """Delete a wiki page: removes the .md file and its Qdrant vectors."""
+    from qdrant_client.models import Filter, FieldCondition, MatchValue, FilterSelector
+    rel_path = args.page.replace("\\", "/")
+    full_path = Path(args.workspace) / rel_path.replace("/", os.sep)
+
+    db = get_db(cfg)
+    coll = cfg.get("qdrant", {}).get("collection", "wiki_pages")
+    try:
+        db.delete(
+            collection_name=coll,
+            points_selector=FilterSelector(
+                filter=Filter(must=[FieldCondition(key="path", match=MatchValue(value=rel_path))])
+            ),
+        )
+    except Exception as e:
+        error("delete_vectors_failed", str(e), recoverable=True)
+        return
+
+    if full_path.exists():
+        full_path.unlink()
+    _append_log(args.workspace, "wiki", f"delete | {rel_path}")
+    ok({"op": "delete", "deleted": rel_path})
 
 
 def cmd_cleanup(args, cfg):
