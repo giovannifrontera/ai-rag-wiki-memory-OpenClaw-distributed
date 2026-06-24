@@ -258,7 +258,7 @@ Use this for garbage pages, duplicates, or spam-injected content.
 ```bash
 python scripts/wiki.py delete \
     --workspace ~/.openclaw/workspace \
-    --page wiki-works/darkweb/luciferian-witchcraft-michael-ford.md
+    --page wiki-works/research/some-garbage-page.md
 ```
 
 ### cleanup
