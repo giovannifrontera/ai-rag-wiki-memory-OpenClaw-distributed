@@ -13,7 +13,7 @@ description: AI Agent wiki protocol v3 — three-layer brain, autonomous promoti
 
 ## §architecture — Three layers, one brain
 
-All layers are indexed in the same LanceDB vector space. The agent accesses everything through semantic search — directory structure is organisational, not a barrier.
+All layers are indexed in the same Qdrant vector collection. The agent accesses everything through semantic search — directory structure is organisational, not a barrier.
 
 | Layer | Folder | Contents | Who writes |
 |-------|--------|----------|------------|

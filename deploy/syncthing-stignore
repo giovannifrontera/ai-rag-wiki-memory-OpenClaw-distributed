@@ -1,17 +1,17 @@
-# Configurazioni locali della macchina — non sincronizzate
+# Local machine configuration; not synchronized
 openclaw.json
 agents/main/agent/auth-profiles.json
 agents/main/agent/auth-state.json
 models.json
 
-# Database vettoriale — gestito da Qdrant su Bazzite
+# Legacy local vector database; distributed runtime uses Qdrant on the server
 memory/lancedb/
 
-# File temporanei wiki
+# Temporary wiki files
 *.tmp
 .wiki-lock
 
-# Artefatti Python
+# Python artifacts
 __pycache__/
 *.pyc
 *.pyo
