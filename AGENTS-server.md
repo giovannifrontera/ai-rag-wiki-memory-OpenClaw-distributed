@@ -16,6 +16,32 @@ This is the **server machine**: it runs Qdrant, manages the vector database, and
 
 ---
 
+## Installation — first-time setup (Step 0)
+
+Clone the repo to get the scripts, then copy them to the workspace:
+
+```bash
+git clone https://github.com/giovannifrontera/ai-rag-wiki-memory-OpenClaw-distributed /tmp/wiki-repo
+mkdir -p ~/.openclaw/workspace/scripts ~/.openclaw/workspace/skills
+cp -r /tmp/wiki-repo/scripts/. ~/.openclaw/workspace/scripts/
+cp -r /tmp/wiki-repo/skills/.  ~/.openclaw/workspace/skills/
+cp /tmp/wiki-repo/wiki.config.json ~/.openclaw/workspace/wiki.config.json
+pip install -r /tmp/wiki-repo/requirements.txt
+rm -rf /tmp/wiki-repo
+```
+
+Edit `~/.openclaw/workspace/wiki.config.json` and set `qdrant.host` to `localhost` (server) or your Tailscale hostname (client).
+
+To run Qdrant:
+- **Native binary**: use `deploy/qdrant.service`
+- **Podman (Fedora/Bazzite)**: use `deploy/qdrant-podman.service`
+  ```bash
+  cp deploy/qdrant-podman.service ~/.config/systemd/user/
+  systemctl --user enable --now qdrant-podman
+  ```
+
+---
+
 ## Health check — run before every session
 
 ```bash

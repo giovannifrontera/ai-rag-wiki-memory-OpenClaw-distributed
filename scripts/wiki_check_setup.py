@@ -35,21 +35,36 @@ def check(workspace: str) -> list[str]:
         issues.append("wiki.config.json is not valid JSON")
         return issues
 
-    ldb_rel = cfg.get("lancedb", {}).get("path", "")
-    if not ldb_rel:
-        issues.append("wiki.config.json: lancedb.path field missing")
+    has_qdrant = bool(cfg.get("qdrant", {}).get("host"))
+    has_lancedb = bool(cfg.get("lancedb", {}).get("path"))
+    if not has_qdrant and not has_lancedb:
+        issues.append("wiki.config.json: neither qdrant nor lancedb backend configured")
+    elif has_qdrant:
+        try:
+            from qdrant_client import QdrantClient
+        except ImportError:
+            issues.append("qdrant-client not installed — run: pip install -r requirements.txt")
+        else:
+            try:
+                qcfg = cfg["qdrant"]
+                client = QdrantClient(host=qcfg.get("host", "localhost"), port=qcfg.get("port", 6333))
+                coll_name = qcfg.get("collection", "wiki_pages")
+                collections = [c.name for c in client.get_collections().collections]
+                if coll_name not in collections:
+                    issues.append(f"Qdrant collection '{coll_name}' not found — run: wiki.py rebuild")
+                elif client.count(coll_name).count == 0:
+                    issues.append(f"Qdrant collection '{coll_name}' is empty — run: wiki.py rebuild")
+            except Exception as e:
+                issues.append(f"Qdrant error: {e}")
     else:
-        ldb_path = ws / ldb_rel
+        ldb_path = ws / cfg["lancedb"]["path"]
         if not ldb_path.exists():
             issues.append(f"LanceDB not found at {ldb_path} — run: wiki.py rebuild")
         else:
-            # Separate import from connection: lancedb.connect() internally triggers
-            # ImportErrors for Unix-only modules (posix, fcntl, adlfs) on Windows.
-            # A broad except ImportError would misidentify these as missing lancedb.
             try:
                 import lancedb
             except ImportError:
-                issues.append("lancedb not installed — run: pip install -r requirements.txt")
+                issues.append("lancedb not installed — run: pip install lancedb")
             else:
                 try:
                     db = lancedb.connect(str(ldb_path))

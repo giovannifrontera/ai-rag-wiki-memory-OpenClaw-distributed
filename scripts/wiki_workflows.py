@@ -11,14 +11,14 @@ from pathlib import Path
 
 from wiki import ok, error, acquire_lock, release_lock
 from wiki_embed import embed_file, _load_model
-from wiki_lancedb import (get_db, upsert, promote_staging, rollback_staging,
-                           ensure_table, detect_renames, query_similar,
-                           find_semantic_duplicates)
+from wiki_qdrant import (get_db, upsert, promote_staging, rollback_staging,
+                          ensure_collection, detect_renames, query_similar,
+                          find_semantic_duplicates)
 from wiki_index import rebuild_index, is_stale, EXCLUDED_NAMES
 
 
-def _lancedb_path(workspace: str, cfg: dict) -> str:
-    return os.path.join(workspace, cfg["lancedb"]["path"])
+def _qdrant_collection(cfg: dict) -> str:
+    return cfg.get("qdrant", {}).get("collection", "wiki_pages")
 
 
 def _append_log(workspace: str, wiki_subdir: str, entry: str) -> None:
@@ -30,15 +30,22 @@ def _append_log(workspace: str, wiki_subdir: str, entry: str) -> None:
         f.write(line)
 
 
-def _mini_lint(workspace: str, written_paths: list, db) -> str:
+def _mini_lint(workspace: str, written_paths: list, client, cfg: dict) -> str:
     """Verifica le invarianti post-ingest. Ritorna 'ok' o descrizione errore."""
-    table = ensure_table(db)
-    df = table.to_pandas()
+    from qdrant_client.models import Filter, FieldCondition, MatchValue
+    coll = _qdrant_collection(cfg)
+    ensure_collection(client, coll)
     for path in written_paths:
         if not os.path.exists(path):
             return f"file_missing:{path}"
         rel = os.path.relpath(path, workspace).replace("\\", "/")
-        if df[df["path"] == rel].empty:
+        results, _ = client.scroll(
+            collection_name=coll,
+            scroll_filter=Filter(must=[FieldCondition(key="path", match=MatchValue(value=rel))]),
+            limit=1,
+            with_payload=False,
+        )
+        if not results:
             return f"not_embedded:{rel}"
     for root_name in ("wiki", "wiki-works"):
         root = Path(workspace) / root_name
@@ -51,7 +58,7 @@ def _mini_lint(workspace: str, written_paths: list, db) -> str:
 def cmd_ingest(args, cfg):
     workspace = args.workspace
     lock_path = os.path.join(workspace, ".wiki-lock")
-    db = get_db(_lancedb_path(workspace, cfg))
+    db = get_db(cfg)
     thresholds = cfg["thresholds"]
 
     try:
@@ -82,9 +89,9 @@ def cmd_ingest(args, cfg):
                 chunk_size=thresholds["chunk_size_tokens"],
                 overlap=thresholds["chunk_overlap_tokens"],
                 threshold=thresholds["page_chunk_threshold_tokens"],
-                model_name=cfg["lancedb"]["embedding_model"],
+                model_name=cfg["embedding_model"],
             )
-            upsert(db, rel_final, chunks, table_name="staging_wiki_pages")
+            upsert(db, cfg, rel_final, chunks, staging=True)
             final_paths.append((tmp_path, os.path.join(workspace, rel_final.replace("/", os.sep))))
 
         for tmp_path, final_path in final_paths:
@@ -92,7 +99,7 @@ def cmd_ingest(args, cfg):
             shutil.move(tmp_path, final_path)
             moved.append((tmp_path, final_path))
 
-        promote_staging(db)
+        promote_staging(db, cfg)
 
         wiki_dir = os.path.join(workspace, "wiki")
         if os.path.isdir(wiki_dir):
@@ -103,7 +110,7 @@ def cmd_ingest(args, cfg):
         _append_log(workspace, "wiki", log_entry)
 
         written = [fp for _, fp in final_paths]
-        lint_result = _mini_lint(workspace, written, db)
+        lint_result = _mini_lint(workspace, written, db, cfg)
 
         if lint_result != "ok":
             _append_log(workspace, "wiki", f"mini-lint-failed | {lint_result}")
@@ -113,7 +120,7 @@ def cmd_ingest(args, cfg):
         ok({"op": "ingest", "pages_written": len(final_paths), "mini_lint": lint_result, "conflicts": []})
 
     except Exception as e:
-        rollback_staging(db)
+        rollback_staging(db, cfg)
         # Ripristina i file già spostati prima dell'errore
         for tmp_p, final_p in moved:
             try:
@@ -131,11 +138,11 @@ def cmd_ingest(args, cfg):
 
 def cmd_query(args, cfg):
     from datetime import datetime as _datetime
-    db = get_db(_lancedb_path(args.workspace, cfg))
-    model, _ = _load_model(cfg["lancedb"]["embedding_model"])
+    db = get_db(cfg)
+    model, _ = _load_model(cfg["embedding_model"])
     vector = model.encode(args.q, normalize_embeddings=True).tolist()
 
-    results = query_similar(db, vector, k=args.k)
+    results = query_similar(db, cfg, vector, k=args.k)
 
     paths = list({r["path"] for r in results})
     log_path = Path(args.workspace) / ".wiki-query-log.jsonl"
@@ -183,12 +190,13 @@ def _wiki_md_files(workspace: str, exclude_patterns: list = None):
 
 
 def cmd_rebuild(args, cfg):
-    db = get_db(_lancedb_path(args.workspace, cfg))
+    db = get_db(cfg)
     thresholds = cfg["thresholds"]
 
-    existing = db.list_tables().tables
-    if "wiki_pages" in existing:
-        db.drop_table("wiki_pages")
+    coll_name = _qdrant_collection(cfg)
+    existing = [c.name for c in db.get_collections().collections]
+    if coll_name in existing:
+        db.delete_collection(coll_name)
 
     count = 0
     for md_file in _wiki_md_files(args.workspace, cfg.get("exclude_from_index", [])):
@@ -198,17 +206,17 @@ def cmd_rebuild(args, cfg):
             chunk_size=thresholds["chunk_size_tokens"],
             overlap=thresholds["chunk_overlap_tokens"],
             threshold=thresholds["page_chunk_threshold_tokens"],
-            model_name=cfg["lancedb"]["embedding_model"],
+            model_name=cfg["embedding_model"],
         )
-        upsert(db, rel, chunks)
+        upsert(db, cfg, rel, chunks)
         count += 1
 
-    _append_log(args.workspace, "wiki", f"rebuild-lancedb | {count} pagine")
+    _append_log(args.workspace, "wiki", f"rebuild-qdrant | {count} pagine")
     ok({"op": "rebuild", "pages_embedded": count})
 
 
 def cmd_lint(args, cfg):
-    db = get_db(_lancedb_path(args.workspace, cfg))
+    db = get_db(cfg)
     report = []
 
     if args.full:
@@ -223,15 +231,34 @@ def cmd_lint(args, cfg):
                 if not matches:
                     report.append({"type": "broken_link", "file": str(md_file), "link": link})
 
-        table = ensure_table(db)
-        df = table.to_pandas()
-        for path in df["path"].unique():
+        from qdrant_client.models import Filter, FieldCondition, MatchValue, FilterSelector
+        coll = _qdrant_collection(cfg)
+        ensure_collection(db, coll)
+        records = []
+        offset = None
+        while True:
+            batch, offset = db.scroll(
+                collection_name=coll,
+                scroll_filter=Filter(must=[FieldCondition(key="chunk_id", match=MatchValue(value=0))]),
+                limit=100,
+                offset=offset,
+                with_payload=True,
+            )
+            records.extend(batch)
+            if offset is None:
+                break
+        for record in records:
+            path = record.payload["path"]
             full = os.path.join(args.workspace, path.replace("/", os.sep))
             if not os.path.exists(full):
                 report.append({"type": "orphan_entry", "path": path})
                 try:
-                    safe = path.replace("'", "''")
-                    table.delete(f"path = '{safe}'")
+                    db.delete(
+                        collection_name=coll,
+                        points_selector=FilterSelector(
+                            filter=Filter(must=[FieldCondition(key="path", match=MatchValue(value=path))])
+                        ),
+                    )
                 except Exception:
                     pass
 
@@ -239,7 +266,7 @@ def cmd_lint(args, cfg):
             str(md_file)
             for md_file in _wiki_md_files(args.workspace, cfg.get("exclude_from_index", []))
         }
-        renames = detect_renames(db, fs_paths, args.workspace)
+        renames = detect_renames(db, cfg, fs_paths, args.workspace)
         for r in renames:
             report.append({"type": "rename_detected", **r})
 
@@ -256,7 +283,7 @@ def cmd_lint(args, cfg):
         # Semantic duplicate detection
         auto_t = cfg.get("thresholds", {}).get("dedup_auto", 0.90)
         warn_t = cfg.get("thresholds", {}).get("dedup_warn", 0.75)
-        for dup in find_semantic_duplicates(db, auto_threshold=auto_t, warn_threshold=warn_t):
+        for dup in find_semantic_duplicates(db, cfg, auto_threshold=auto_t, warn_threshold=warn_t):
             report.append({"type": "semantic_duplicate", **dup})
 
     errors = sum(1 for r in report if r["type"] in ("broken_link", "orphan_entry"))

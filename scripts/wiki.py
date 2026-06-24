@@ -42,6 +42,8 @@ def load_config(config_path: str) -> dict:
             if not isinstance(node, dict) or key not in node:
                 raise ConfigError(f"Campo obbligatorio mancante: {'.'.join(field_path)}")
             node = node[key]
+    if isinstance(cfg.get("workspace"), str):
+        cfg["workspace"] = os.path.expanduser(cfg["workspace"])
     return cfg
 
 
