@@ -135,6 +135,8 @@ def emit_briefing(workspace: str) -> None:
         "",
         "NON-NEGOTIABLE RULES:",
         "  - Never write directly to wiki/ or wiki-works/ — always use wiki.py",
+        "  - Questions: use injected <wiki-context> first; if absent, run wiki.py query",
+        "  - Durable knowledge: write .tmp pages, then run wiki.py ingest",
         "  - PDF ingestion: wiki.py ingest-pdf --workspace <ws> --file <path>",
         "    (text extracted via pdfplumber, deposited in wiki-works/<project>/raw/)",
         "  - After ingest-pdf: YOU write structured .tmp pages, then call wiki.py ingest",

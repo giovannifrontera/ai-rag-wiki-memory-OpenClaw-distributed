@@ -23,18 +23,19 @@ from pathlib import Path
 
 USAGE_SENTINEL_START = "<!-- ai-wiki-system:usage-start -->"
 
-USAGE_INSTRUCTIONS = """\
+USAGE_INSTRUCTIONS = r"""\
 <!-- ai-wiki-system:usage-start -->
 ## Wiki Knowledge System
 
 At the start of every session:
-1. Read `wiki-session.md` for the current wiki context
-2. Before any wiki operation, re-read `skills/wiki-core.md` to verify the protocol
+1. Read `wiki-session.md` for the current wiki context.
+2. Before any wiki operation, re-read `skills/wiki-core.md` to verify the protocol.
 
 The wiki is your persistent brain. Use it actively:
-- Every relevant piece of knowledge should be ingested into the wiki
-- Every complex question should first be checked against the wiki
-- Run LINT proactively every 2 weeks
+- Questions: use injected `<wiki-context>` first. If absent, run `wiki.py query`.
+- New durable knowledge: write `.tmp` pages, then run `wiki.py ingest`.
+- PDFs: run `wiki.py ingest-pdf`, read deposited raw text, write structured `.tmp` pages, then run `wiki.py ingest`.
+- Maintenance: run `wiki.py lint --full` proactively every 2 weeks or after conflict resolution.
 
 Never write directly into the `wiki/` or `wiki-works/` directories.
 Always use `wiki.py` for any write operation.
@@ -52,28 +53,70 @@ Pre-loaded wiki context (top 3 pages by semantic relevance):
 </wiki-context>
 ```
 
-Use this block directly as the starting context — it is already the most relevant knowledge for this prompt. Do not run `wiki.py query` again for the same query. If the block is absent, proceed normally with `skills/wiki-core.md`.
+Use this block directly as the starting context. It is already the most relevant knowledge for this prompt. Do not run `wiki.py query` again for the same query. If the block is absent, proceed normally with `skills/wiki-core.md`.
 
-## Wiki Dashboard (v2.2+)
+## Required command patterns
+
+Query:
+```bash
+python scripts/wiki.py query --workspace <workspace> --q "<question>" --k 5
+```
+
+Ingest:
+```bash
+python scripts/wiki.py ingest --workspace <workspace> --pages <p1.tmp,p2.tmp> --log "ingest | <title>"
+```
+
+Lint:
+```bash
+python scripts/wiki.py lint --workspace <workspace> --full
+```
+
+PDF:
+```bash
+python scripts/wiki.py ingest-pdf --workspace <workspace> --file <path-or-url>
+```
+
+Cleanup:
+```bash
+python scripts/wiki.py cleanup --workspace <workspace>
+```
+
+Delete garbage/spam page:
+```bash
+python scripts/wiki.py delete --workspace <workspace> --page <relative/path.md>
+```
+
+## Wiki Dashboard
 
 When the server is running (`wiki.py serve`), a `[Stats]` tab is available at `http://localhost:7331`.
-Check there for: embedding coverage, stale pages, top queried pages, lint status.
+Check there for embedding coverage, stale pages, top queried pages, and lint status.
 
 REST endpoints (auth-protected):
-- `GET  /api/stats` — full observability snapshot as JSON
-- `POST /api/lint` — trigger lint (returns 409 if already running)
-
-Auto-lint: add to `wiki.config.json`:
-```json
-{ "frontend": { "lint_interval_hours": 24 } }
-```
+- `GET  /api/stats` - full observability snapshot as JSON
+- `POST /api/lint` - trigger lint; returns 409 if already running
 
 ## PDF Inbox
 
-When the user sends a PDF file in chat or provides a file path/URL:
+When the user sends a PDF file in chat or provides a file path/URL, follow the full `skills/wiki-core.md` PDF workflow. `process-raw` is only for already-deposited raw files; it is not a substitute for structured ingest.
+
+## Install / repair
+
+If setup is broken or the user asks to install/repair, read `skills/wiki-setup.md`.
+
+Server:
+```bash
+./deploy/install-server-full.sh
 ```
-wiki.py ingest-pdf --workspace <workspace> --file <path|url>
-wiki.py scan-inbox --workspace <workspace>
+
+Client:
+```bash
+./deploy/install-client-full.sh <qdrant-server-hostname-or-tailnet-ip>
+```
+
+Windows client:
+```powershell
+.\deploy\install-client-full.ps1 -QdrantHost <qdrant-server-hostname-or-tailnet-ip>
 ```
 <!-- ai-wiki-system:usage-end -->
 """

@@ -59,13 +59,13 @@ export default definePluginEntry({
     // before it processes any user message.
     let sessionBriefingSent = false;
 
-    // Startup: verify python can import lancedb (fail silently, warn loudly)
+    // Startup: verify python can import the distributed Qdrant backend (fail silently, warn loudly)
     void (async () => {
       try {
-        await execFileAsync(python, ["-c", "import lancedb"], { timeout: 10_000 });
+        await execFileAsync(python, ["-c", "import qdrant_client"], { timeout: 10_000 });
       } catch {
         const msg =
-          `[wiki-context-plugin] WARNING: '${python}' cannot import lancedb.\n` +
+          `[wiki-context-plugin] WARNING: '${python}' cannot import qdrant_client.\n` +
           `Wiki context will not be injected. Set 'pythonExecutable' to the absolute path.\n` +
           `Find the correct path: ${python} -c "import sys; print(sys.executable)"`;
         console.warn(msg);
