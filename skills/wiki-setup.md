@@ -65,7 +65,27 @@ curl -fsS http://localhost:6333/health >/dev/null 2>&1 && echo SERVER || echo CL
 
 Run this section only on the Qdrant server.
 
-### S1 - Install Dependencies
+### S1 - Full Blind Installer
+
+Prefer the full installer. It performs preflight checks, bootstraps the workspace, starts or verifies Qdrant, initializes the collection, starts Syncthing, enables the ingest watchdog, builds/configures the OpenClaw plugin, and runs final checks.
+
+Linux:
+
+```bash
+./deploy/install-server-full.sh
+```
+
+With explicit workspace and OpenClaw config:
+
+```bash
+./deploy/install-server-full.sh ~/.openclaw/workspace <OPENCLAW_CONFIG_PATH>
+```
+
+Stop if the installer fails. Report the failed section and exact command output. Do not continue with fallback steps unless the user asks.
+
+### S2 - Manual Preflight Fallback
+
+Use this only if the full installer cannot be used.
 
 Verify required commands:
 
@@ -82,7 +102,7 @@ sudo apt-get install syncthing inotify-tools
 
 For Fedora use `sudo dnf install syncthing inotify-tools`. For macOS use `brew install syncthing`.
 
-### S2 - Bootstrap Workspace
+### S3 - Bootstrap Workspace
 
 From `<REPO>`:
 
@@ -102,7 +122,7 @@ test -d "$WORKSPACE/wiki"
 test -d "$WORKSPACE/wiki-works"
 ```
 
-### S3 - Start Qdrant
+### S4 - Start Qdrant
 
 If Qdrant is already running, this passes:
 
@@ -131,7 +151,7 @@ curl -fsS http://localhost:6333/health
 
 If using native systemd, follow `docs/install-qdrant.md`, then verify with the same curl command.
 
-### S4 - Initialize Or Rebuild Qdrant Collection
+### S5 - Initialize Or Rebuild Qdrant Collection
 
 If the workspace already has Markdown pages, rebuild the vector collection:
 
@@ -153,7 +173,7 @@ Verify query works:
 python3 "$WORKSPACE/scripts/wiki.py" query --workspace "$WORKSPACE" --q "setup smoke test" --k 1
 ```
 
-### S5 - Configure Tailscale
+### S6 - Configure Tailscale
 
 Install and log in with the user present. Use `docs/tailscale-setup.md` for OS-specific commands.
 
@@ -167,7 +187,7 @@ curl -fsS http://$(tailscale ip -4):6333/health
 
 If the curl fails, check firewall rules. Do not expose Qdrant to the public internet.
 
-### S6 - Configure Syncthing
+### S7 - Configure Syncthing
 
 Start Syncthing:
 
@@ -184,7 +204,7 @@ Verify the ignore file exists:
 test -f "$WORKSPACE/.stignore"
 ```
 
-### S7 - Enable Server Ingest Watchdog
+### S8 - Enable Server Ingest Watchdog
 
 The watchdog closes the offline laptop gap: when Syncthing receives `.md` files, the server re-ingests them into Qdrant.
 
@@ -203,7 +223,7 @@ Verify the script syntax if Bash is available:
 bash -n "$WORKSPACE/scripts/watch-sync.sh"
 ```
 
-### S8 - Install OpenClaw Plugin On Server
+### S9 - Install OpenClaw Plugin On Server
 
 Build the plugin from `<REPO>`:
 
@@ -228,7 +248,7 @@ python3 scripts/setup_openclaw.py --workspace "$WORKSPACE" --config <OPENCLAW_CO
 
 Restart OpenClaw.
 
-### S9 - Server Final Verification
+### S10 - Server Final Verification
 
 Run all checks:
 

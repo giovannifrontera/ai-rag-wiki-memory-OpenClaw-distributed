@@ -104,7 +104,7 @@ This project is a **direct evolution** of [`ai-longterm-wiki-memory-OpenClaw`](h
 | **Staging / rollback** | Upsert operations write to a `staging_*` collection before promoting to production |
 | **Migration script** | `migrate_lancedb_to_qdrant.py` transfers existing vectors without re-embedding |
 | **Syncthing conflict protocol** | Detection and guided resolution of `*.sync-conflict-*` files in `wiki-core.md` |
-| **Deploy files** | `deploy/qdrant.service`, `deploy/qdrant-podman.service`, `deploy/setup-server.sh`, `deploy/setup-client.sh`, `deploy/install-client-full.sh`, `deploy/install-client-full.ps1`, `deploy/watch-sync.sh`, `deploy/wiki-sync-watchdog.service`, `deploy/syncthing-stignore` |
+| **Deploy files** | `deploy/qdrant.service`, `deploy/qdrant-podman.service`, `deploy/install-server-full.sh`, `deploy/setup-server.sh`, `deploy/setup-client.sh`, `deploy/install-client-full.sh`, `deploy/install-client-full.ps1`, `deploy/watch-sync.sh`, `deploy/wiki-sync-watchdog.service`, `deploy/syncthing-stignore` |
 | **Cross-platform paths** | No absolute paths with usernames — everything uses `~` or relative paths |
 
 ---
@@ -157,11 +157,13 @@ pip install -r requirements.txt
 
 ### 2. Install and start Qdrant on the server
 
-Detailed options are in [`docs/install-qdrant.md`](docs/install-qdrant.md). For a guided server bootstrap, run:
+Detailed options are in [`docs/install-qdrant.md`](docs/install-qdrant.md). For a full server install, run:
 
 ```bash
-./deploy/setup-server.sh ~/.openclaw/workspace
+./deploy/install-server-full.sh ~/.openclaw/workspace
 ```
+
+Use `deploy/setup-server.sh` only when you want workspace/bootstrap without starting Qdrant, watchdog, Syncthing, or OpenClaw plugin setup.
 
 ```bash
 # Download the binary
