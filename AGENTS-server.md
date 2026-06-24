@@ -5,7 +5,7 @@
 > **Every session, before any action:**
 > 1. `Read wiki-session.md` in the workspace — check the status
 > 2. `Read skills/wiki-core.md` — load the full protocol
-> 3. Verify Qdrant is running: `curl http://localhost:6333/health`
+> 3. Verify Qdrant is running: `curl http://localhost:6333/`
 > 4. Scan `wiki/` and `wiki-works/` for `*.sync-conflict-*` files — if found, **stop and alert the user**
 >
 > These are local files. Use the **Read** tool, not a Skill or Tool call.
@@ -54,8 +54,8 @@ To run Qdrant:
 ## Health check — run before every session
 
 ```bash
-# Is Qdrant running?
-curl http://localhost:6333/health
+# Is Qdrant running? (GET / works on all Qdrant versions; /health was removed in >=1.18)
+curl http://localhost:6333/
 # Expected: {"title":"qdrant - vector search engine","version":"..."}
 
 # Is the collection present?

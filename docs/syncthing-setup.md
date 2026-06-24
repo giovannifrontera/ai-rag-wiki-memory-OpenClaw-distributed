@@ -123,3 +123,28 @@ python3 ~/.openclaw/workspace/scripts/wiki.py ingest \
 ```
 
 It stores processed file hashes in `.synced-ingested.json`, so unchanged files do not trigger repeated ingest. `wiki.py ingest` replaces vectors by path, so reconnect races with a laptop-side ingest do not create duplicate vectors.
+
+## Known Gotchas
+
+### Windows: folder path defaults to the folder label, not the correct path
+
+When the server shares a folder with a human-readable label (e.g. "Virginia Wiki"), Syncthing on Windows proposes that label as the local directory name. Files end up in `C:\Users\<you>\Virginia Wiki\` instead of `C:\Users\<you>\.openclaw\workspace\`.
+
+**Fix:** immediately after accepting the shared folder in Syncthing UI, edit it and set the local path to `C:\Users\<you>\.openclaw\workspace`. Do this **before the first sync starts**. If the sync has already run in the wrong directory:
+
+1. Pause the folder in Syncthing UI.
+2. Remove the folder from the client's Syncthing config.
+3. Re-accept the share from the server.
+4. Set the correct local path this time.
+
+### Ghost folders — server re-offers removed folders
+
+If you remove a shared folder from the client's Syncthing config, the server will re-offer it on the next reconnect. Syncthing auto-accepts shares from trusted devices by default, so the folder silently reappears and consumes CPU generating spurious error logs.
+
+**Workaround:** use **Pause** instead of Remove on the client side. To stop sync permanently, the server must remove this client from the folder's Sharing settings:
+
+1. Server Syncthing UI → folder → Edit → Sharing tab.
+2. Uncheck the client device.
+3. Save.
+
+After that the server stops offering the folder and the client can safely remove it.

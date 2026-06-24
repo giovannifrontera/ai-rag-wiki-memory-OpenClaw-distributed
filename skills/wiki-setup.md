@@ -54,7 +54,8 @@ Use `python3` on Linux/macOS. Use `py` or the absolute Python executable on Wind
 Ask or infer from the host:
 
 ```bash
-curl -fsS http://localhost:6333/health >/dev/null 2>&1 && echo SERVER || echo CLIENT_OR_NOT_READY
+# GET / works on all Qdrant versions; /health was removed in >=1.18
+curl -fsS http://localhost:6333/ >/dev/null 2>&1 && echo SERVER || echo CLIENT_OR_NOT_READY
 ```
 
 - If this machine should host Qdrant, follow `Server Install`.
@@ -127,7 +128,7 @@ test -d "$WORKSPACE/wiki-works"
 If Qdrant is already running, this passes:
 
 ```bash
-curl -fsS http://localhost:6333/health
+curl -fsS http://localhost:6333/
 ```
 
 If it fails and Podman is available:
@@ -138,7 +139,7 @@ cp deploy/qdrant-podman.service ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now qdrant-podman
 loginctl enable-linger "$USER"
-curl -fsS http://localhost:6333/health
+curl -fsS http://localhost:6333/
 ```
 
 If using Docker:
@@ -146,7 +147,7 @@ If using Docker:
 ```bash
 docker volume create qdrant_data
 docker run -d --name qdrant --restart unless-stopped -p 6333:6333 -p 6334:6334 -v qdrant_data:/qdrant/storage qdrant/qdrant:latest
-curl -fsS http://localhost:6333/health
+curl -fsS http://localhost:6333/
 ```
 
 If using native systemd, follow `docs/install-qdrant.md`, then verify with the same curl command.
@@ -182,7 +183,7 @@ Verify Qdrant is reachable on the Tailscale interface:
 ```bash
 tailscale status
 tailscale ip -4
-curl -fsS http://$(tailscale ip -4):6333/health
+curl -fsS http://$(tailscale ip -4):6333/
 ```
 
 If the curl fails, check firewall rules. Do not expose Qdrant to the public internet.
@@ -311,7 +312,7 @@ python3 --version || python --version || py --version
 Verify Qdrant server reachability:
 
 ```bash
-curl -fsS http://<QDRANT_SERVER_TAILSCALE_HOST_OR_IP>:6333/health
+curl -fsS http://<QDRANT_SERVER_TAILSCALE_HOST_OR_IP>:6333/
 ```
 
 If this fails, do not continue. Fix Tailscale, hostname, or firewall first.
@@ -346,16 +347,21 @@ Open `http://localhost:8384` with the user present.
 
 1. Add the server device.
 2. Accept the shared `openclaw-workspace` folder.
-3. Set local path to `~/.openclaw/workspace`.
+3. **Critical on Windows:** immediately set the local path to `~/.openclaw/workspace` (or `C:\Users\<user>\.openclaw\workspace`). Syncthing on Windows defaults to using the folder label as the path — files land in a wrong directory if you do not override this before the first sync.
 4. Wait until Syncthing reports "Up to Date".
 
-Verify files arrived:
+Verify files arrived at the correct path:
 
 ```bash
 test -d "$HOME/.openclaw/workspace/wiki"
 test -d "$HOME/.openclaw/workspace/wiki-works"
 test -f "$HOME/.openclaw/workspace/.stignore"
 ```
+
+If `wiki/` or `wiki-works/` are missing but Syncthing shows "Up to Date", the sync landed in a wrong directory. Stop, remove the folder from Syncthing UI, re-accept the share from the server, and set the correct path.
+
+**Gotcha — ghost folders re-offered by the server:**
+If unwanted folders appear after reconnect, the server is re-offering previously-removed shares. Syncthing auto-accepts shares from trusted devices. Use Pause (not Remove) on the client, or ask the user to uncheck this client from the folder's Sharing settings on the server.
 
 ### C5 - Install Python Dependencies
 

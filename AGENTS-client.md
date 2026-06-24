@@ -5,7 +5,7 @@
 > **Every session, before any action:**
 > 1. `Read wiki-session.md` in the workspace — check the status
 > 2. `Read skills/wiki-core.md` — load the full protocol
-> 3. Verify Qdrant connectivity: `curl http://<qdrant-server>:6333/health`
+> 3. Verify Qdrant connectivity: `curl http://<qdrant-server>:6333/`
 > 4. Verify Syncthing is synced (recent files present in `wiki/`)
 > 5. Scan `wiki/` and `wiki-works/` for `*.sync-conflict-*` files — if found, **stop and alert**
 >
@@ -38,8 +38,8 @@ Use `deploy/setup-client.sh` only for lightweight workspace/config bootstrap.
 ## Health check — run before every session
 
 ```bash
-# Is Qdrant reachable via Tailscale?
-curl http://<qdrant-server>:6333/health
+# Is Qdrant reachable via Tailscale? (GET / works on all Qdrant versions; /health was removed in >=1.18)
+curl http://<qdrant-server>:6333/
 # Expected: {"title":"qdrant - vector search engine","version":"..."}
 # If this fails: check that Tailscale is connected and Qdrant is running on the server
 
@@ -129,6 +129,26 @@ If you find `*.sync-conflict-*` files in `wiki/` or `wiki-works/`:
 6. Update `wiki-session.md` with `status: ok`
 
 Never delete conflict files automatically.
+
+---
+
+## Syncthing known gotchas
+
+### Ghost folders — server re-offers removed folders
+
+If you remove a shared folder from the client's Syncthing config, the server will re-offer it on the next connection and Syncthing will auto-accept it (trusted device). The folder reappears and consumes CPU generating error logs.
+
+**Workaround:** pause the folder (Syncthing UI → folder → Pause) instead of removing it. To permanently stop sync, the server must uncheck this client device in the folder's Sharing settings (server Syncthing UI → folder → Edit → Sharing). Alert the user if unwanted folders keep reappearing — this requires a server-side change.
+
+### Windows: folder path defaults to folder label, not the correct path
+
+When the server shares a folder with a human-readable name (e.g. "Virginia Wiki"), Syncthing on Windows proposes that label as the local folder path. Files end up in `C:\Users\<you>\Virginia Wiki\` instead of `C:\Users\<you>\.openclaw\workspace\`.
+
+**Action required after accepting a shared folder on Windows:**
+1. Before the first sync starts, edit the folder in Syncthing UI and set the local path to `C:\Users\<you>\.openclaw\workspace`.
+2. If the sync already started in the wrong path: pause it, remove the folder from Syncthing, re-accept the share from the server, and set the correct path this time.
+
+Alert the user immediately if you detect that `wiki/` or `wiki-works/` are absent from `~/.openclaw/workspace` — the files may have landed in a wrong directory.
 
 ---
 
