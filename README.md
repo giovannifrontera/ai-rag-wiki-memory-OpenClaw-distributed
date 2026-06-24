@@ -104,7 +104,7 @@ This project is a **direct evolution** of [`ai-longterm-wiki-memory-OpenClaw`](h
 | **Staging / rollback** | Upsert operations write to a `staging_*` collection before promoting to production |
 | **Migration script** | `migrate_lancedb_to_qdrant.py` transfers existing vectors without re-embedding |
 | **Syncthing conflict protocol** | Detection and guided resolution of `*.sync-conflict-*` files in `wiki-core.md` |
-| **Deploy files** | `deploy/qdrant.service`, `deploy/qdrant-podman.service`, `deploy/setup-server.sh`, `deploy/setup-client.sh`, `deploy/watch-sync.sh`, `deploy/wiki-sync-watchdog.service`, `deploy/syncthing-stignore` |
+| **Deploy files** | `deploy/qdrant.service`, `deploy/qdrant-podman.service`, `deploy/setup-server.sh`, `deploy/setup-client.sh`, `deploy/install-client-full.sh`, `deploy/install-client-full.ps1`, `deploy/watch-sync.sh`, `deploy/wiki-sync-watchdog.service`, `deploy/syncthing-stignore` |
 | **Cross-platform paths** | No absolute paths with usernames — everything uses `~` or relative paths |
 
 ---
@@ -246,10 +246,14 @@ pytest tests/ -v
 
 ```bash
 # Prerequisite: Tailscale already connected, Syncthing running
-./deploy/setup-client.sh <qdrant-server-hostname>
-# Automatically updates wiki.config.json with the remote Qdrant host
-# Copies .stignore to the workspace
-# Prints remaining manual steps (add device in Syncthing)
+./deploy/install-client-full.sh <qdrant-server-hostname>
+# Full client setup: workspace, config, Python deps, plugin build/config, verification
+```
+
+Windows PowerShell:
+
+```powershell
+.\deploy\install-client-full.ps1 -QdrantHost <qdrant-server-hostname>
 ```
 
 ---
@@ -526,9 +530,12 @@ pip install -r requirements.txt
 The `wiki.config.json` will arrive via Syncthing from the server (with `host: localhost`). You need to change the host:
 
 ```bash
-# Automated
+# Full automated client tooling
+./deploy/install-client-full.sh <qdrant-server-hostname>
+# e.g. ./deploy/install-client-full.sh myserver.tail.xxxxxxx.ts.net
+
+# Workspace/config bootstrap only
 ./deploy/setup-client.sh <qdrant-server-hostname>
-# e.g. ./deploy/setup-client.sh myserver.tail.xxxxxxx.ts.net
 
 # Or manually
 python3 -c "

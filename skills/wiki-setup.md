@@ -248,7 +248,37 @@ Expected:
 
 Run this section only on laptops/clients.
 
-### C1 - Verify Network And Tools
+### C1 - Full Blind Installer
+
+Prefer the full installer. It performs preflight checks, verifies Qdrant reachability, bootstraps the workspace, installs Python dependencies, builds the OpenClaw plugin, injects the plugin config, and runs final checks.
+
+Linux/macOS/Git Bash:
+
+```bash
+./deploy/install-client-full.sh <QDRANT_SERVER_TAILSCALE_HOST_OR_IP>
+```
+
+Windows PowerShell:
+
+```powershell
+.\deploy\install-client-full.ps1 -QdrantHost <QDRANT_SERVER_TAILSCALE_HOST_OR_IP>
+```
+
+If OpenClaw config auto-detection fails, pass the config path explicitly:
+
+```bash
+./deploy/install-client-full.sh <QDRANT_SERVER_TAILSCALE_HOST_OR_IP> ~/.openclaw/workspace <OPENCLAW_CONFIG_PATH>
+```
+
+```powershell
+.\deploy\install-client-full.ps1 -QdrantHost <QDRANT_SERVER_TAILSCALE_HOST_OR_IP> -OpenClawConfig <OPENCLAW_CONFIG_PATH>
+```
+
+Stop if the installer fails. Report the failed section and exact command output. Do not continue with fallback steps unless the user asks.
+
+### C2 - Manual Preflight Fallback
+
+Use this only if the full installer cannot be used.
 
 Install or verify Tailscale and Syncthing with the user present:
 
@@ -266,7 +296,7 @@ curl -fsS http://<QDRANT_SERVER_TAILSCALE_HOST_OR_IP>:6333/health
 
 If this fails, do not continue. Fix Tailscale, hostname, or firewall first.
 
-### C2 - Bootstrap Client Workspace
+### C3 - Bootstrap Client Workspace
 
 From `<REPO>`:
 
@@ -290,7 +320,7 @@ print(cfg["qdrant"])
 PY
 ```
 
-### C3 - Pair Syncthing
+### C4 - Pair Syncthing
 
 Open `http://localhost:8384` with the user present.
 
@@ -307,7 +337,7 @@ test -d "$HOME/.openclaw/workspace/wiki-works"
 test -f "$HOME/.openclaw/workspace/.stignore"
 ```
 
-### C4 - Install Python Dependencies
+### C5 - Install Python Dependencies
 
 From `<REPO>`:
 
@@ -321,7 +351,7 @@ On Windows use:
 py -m pip install -r requirements.txt
 ```
 
-### C5 - Install OpenClaw Plugin On Client
+### C6 - Install OpenClaw Plugin On Client
 
 Build the plugin:
 
@@ -346,7 +376,7 @@ python3 scripts/setup_openclaw.py --workspace "$HOME/.openclaw/workspace" --pyth
 
 Restart OpenClaw.
 
-### C6 - Client Final Verification
+### C7 - Client Final Verification
 
 Run:
 
