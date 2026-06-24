@@ -51,25 +51,43 @@ Copy-Item -Recurse -Force (Join-Path $RepoRoot "skills\*") (Join-Path $Workspace
 Copy-Item -Force (Join-Path $RepoRoot "deploy\syncthing-stignore") (Join-Path $Workspace ".stignore")
 
 $ConfigPath = Join-Path $Workspace "wiki.config.json"
-if (-not (Test-Path $ConfigPath)) {
-    Copy-Item -Force (Join-Path $RepoRoot "wiki.config.json") $ConfigPath
+$TemplatePath = Join-Path $RepoRoot "wiki.config.json"
+# Merge: template (all required fields) <- existing config (user customisations) <- installer params.
+# Runs via Python so the write is UTF-8 NoBOM and the merge is correct for nested dicts.
+$MergeScript = @'
+import json, sys
+from pathlib import Path
+
+template_path = Path(sys.argv[1])
+config_path   = Path(sys.argv[2])
+workspace     = sys.argv[3]
+qdrant_host   = sys.argv[4]
+
+cfg = json.loads(template_path.read_text(encoding="utf-8"))
+if config_path.exists():
+    existing = json.loads(config_path.read_text(encoding="utf-8"))
+    for k, v in existing.items():
+        if isinstance(v, dict) and isinstance(cfg.get(k), dict):
+            cfg[k].update(v)   # merge nested dicts; template keys not in existing are kept
+        else:
+            cfg[k] = v
+
+cfg["workspace"] = workspace
+cfg.setdefault("qdrant", {})
+cfg["qdrant"]["host"] = qdrant_host
+cfg["qdrant"].setdefault("port", 6333)
+cfg["qdrant"].setdefault("collection", "wiki_pages")
+
+config_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+print("wiki.config.json updated: qdrant.host =", cfg["qdrant"]["host"])
+'@
+$TmpScript = [System.IO.Path]::GetTempFileName() + ".py"
+[System.IO.File]::WriteAllText($TmpScript, $MergeScript, [System.Text.UTF8Encoding]::new($false))
+try {
+    & $Python $TmpScript $TemplatePath $ConfigPath $Workspace $QdrantHost
+} finally {
+    Remove-Item -Force $TmpScript -ErrorAction SilentlyContinue
 }
-$Cfg = Get-Content -Raw -Path $ConfigPath | ConvertFrom-Json
-$Cfg.workspace = $Workspace
-if (-not $Cfg.qdrant) {
-    $Cfg | Add-Member -MemberType NoteProperty -Name qdrant -Value ([pscustomobject]@{})
-}
-$Cfg.qdrant | Add-Member -Force -MemberType NoteProperty -Name host -Value $QdrantHost
-if (-not $Cfg.qdrant.port) {
-    $Cfg.qdrant | Add-Member -Force -MemberType NoteProperty -Name port -Value 6333
-}
-if (-not $Cfg.qdrant.collection) {
-    $Cfg.qdrant | Add-Member -Force -MemberType NoteProperty -Name collection -Value "wiki_pages"
-}
-# Write without BOM — PowerShell's UTF8 adds a BOM that breaks Python json.load()
-$configJson = $Cfg | ConvertTo-Json -Depth 20
-[System.IO.File]::WriteAllText($ConfigPath, $configJson, [System.Text.UTF8Encoding]::new($false))
-Write-Host "wiki.config.json updated: qdrant.host = $QdrantHost"
 
 Step "Python dependencies"
 & $Python -m pip install -r (Join-Path $RepoRoot "requirements.txt")

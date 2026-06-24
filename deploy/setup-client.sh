@@ -32,24 +32,32 @@ cp -R "$REPO_ROOT/scripts/." "$WORKSPACE/scripts/"
 cp -R "$REPO_ROOT/skills/." "$WORKSPACE/skills/"
 cp "$REPO_ROOT/deploy/syncthing-stignore" "$WORKSPACE/.stignore"
 
-if [ ! -f "$WORKSPACE/wiki.config.json" ]; then
-  cp "$REPO_ROOT/wiki.config.json" "$WORKSPACE/wiki.config.json"
-fi
-
-python3 - "$WORKSPACE/wiki.config.json" "$QDRANT_HOST" <<'PY'
-import json
-import sys
+python3 - "$REPO_ROOT/wiki.config.json" "$WORKSPACE/wiki.config.json" "$QDRANT_HOST" "$WORKSPACE" <<'PY'
+import json, sys
 from pathlib import Path
 
-path = Path(sys.argv[1]).expanduser()
-host = sys.argv[2]
-cfg = json.loads(path.read_text(encoding="utf-8"))
-cfg["workspace"] = str(path.parent)
+template_path = Path(sys.argv[1])
+config_path   = Path(sys.argv[2]).expanduser()
+qdrant_host   = sys.argv[3]
+workspace     = sys.argv[4]
+
+# Start from the repo template so all required fields are always present.
+cfg = json.loads(template_path.read_text(encoding="utf-8"))
+# Merge existing config on top (preserves user customisations; template fills gaps).
+if config_path.exists():
+    existing = json.loads(config_path.read_text(encoding="utf-8"))
+    for k, v in existing.items():
+        if isinstance(v, dict) and isinstance(cfg.get(k), dict):
+            cfg[k].update(v)
+        else:
+            cfg[k] = v
+# Installer params always win.
+cfg["workspace"] = workspace
 cfg.setdefault("qdrant", {})
-cfg["qdrant"]["host"] = host
+cfg["qdrant"]["host"] = qdrant_host
 cfg["qdrant"].setdefault("port", 6333)
 cfg["qdrant"].setdefault("collection", "wiki_pages")
-path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+config_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
 print("wiki.config.json updated: qdrant.host =", cfg["qdrant"]["host"])
 PY
 
