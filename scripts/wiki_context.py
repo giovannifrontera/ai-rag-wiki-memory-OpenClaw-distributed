@@ -83,12 +83,12 @@ def _run(args):
         os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
         os.environ.setdefault("HF_HUB_VERBOSITY", "error")
         os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-        from sentence_transformers import SentenceTransformer
         import logging
         logging.getLogger("sentence_transformers").setLevel(logging.ERROR)
         logging.getLogger("transformers").setLevel(logging.ERROR)
         logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
         import wiki_qdrant
+        from wiki_embed import embed_query
     except ImportError:
         return
 
@@ -102,8 +102,10 @@ def _run(args):
     if coll not in existing_colls:
         return
 
-    model = SentenceTransformer(cfg.get("embedding_model", "BAAI/bge-m3"), device="cpu")
-    vector = model.encode(args.q, normalize_embeddings=True).tolist()
+    # L'hook è un subprocess one-shot: col backend sentence-transformers il modello
+    # viene comunque caricato a ogni prompt (ma su device configurabile, anche GPU).
+    # Per latenza minima usare backend "ollama": HTTP a un processo già caldo.
+    vector = embed_query(args.q, cfg)
 
     # Over-fetch per deduplicare per pagina, poi prendere i top-k
     raw = wiki_qdrant.query_similar(client, cfg, vector, k=args.k * 4)

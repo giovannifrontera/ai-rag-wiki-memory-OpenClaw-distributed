@@ -1,5 +1,6 @@
 qdrant-client>=1.9.0
-sentence-transformers>=3.0.0
+transformers>=4.40.0          # tokenizer leggero per il chunking (no torch)
+sentence-transformers>=3.0.0  # solo per backend embedding "sentence-transformers" (cpu/cuda)
 pyarrow>=14.0.0
 pandas>=2.0.0
 pytest>=8.0.0

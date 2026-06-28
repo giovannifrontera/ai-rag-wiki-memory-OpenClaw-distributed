@@ -33,8 +33,6 @@ _lint_busy: bool = False
 _server_start: float = 0.0
 
 _ws_clients: Set[WebSocket] = set()
-_embed_model = None  # SentenceTransformer — loaded once on first /api/context call
-_embed_model_lock = asyncio.Lock()
 
 app = FastAPI(docs_url=None, redoc_url=None)
 
@@ -246,28 +244,6 @@ async def api_stats():
     return JSONResponse(_build_stats())
 
 
-async def _get_embed_model():
-    """Load SentenceTransformer once, keep it in memory for the server lifetime."""
-    global _embed_model
-    if _embed_model is not None:
-        return _embed_model
-    async with _embed_model_lock:
-        if _embed_model is None:
-            import os as _os
-            _os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
-            _os.environ.setdefault("HF_HUB_VERBOSITY", "error")
-            _os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-            import logging as _logging
-            for _name in ("sentence_transformers", "transformers", "huggingface_hub"):
-                _logging.getLogger(_name).setLevel(_logging.ERROR)
-            from sentence_transformers import SentenceTransformer
-            model_name = _cfg.get("embedding_model", "BAAI/bge-m3")
-            loop = asyncio.get_event_loop()
-            _embed_model = await loop.run_in_executor(
-                None, lambda: SentenceTransformer(model_name, device="cpu")
-            )
-    return _embed_model
-
 
 _LOCALHOST_ADDRS = {"127.0.0.1", "::1", "::ffff:127.0.0.1"}
 
@@ -284,9 +260,9 @@ async def api_context(request: Request, q: str = "", k: int = 3, max_chars: int 
 
     import fnmatch as _fnmatch
     try:
-        model = await _get_embed_model()
+        import wiki_embed
         vector = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: model.encode(q, normalize_embeddings=True).tolist()
+            None, lambda: wiki_embed.embed_query(q, _cfg)
         )
         client = _qdrant_get_db(_cfg)
         raw = _qdrant_query_similar(client, _cfg, vector, k=k * 4)

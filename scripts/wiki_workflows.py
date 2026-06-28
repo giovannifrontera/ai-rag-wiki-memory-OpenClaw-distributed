@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 from wiki import ok, error, acquire_lock, release_lock
-from wiki_embed import embed_file, _load_model
+from wiki_embed import embed_file, embed_query
 from wiki_qdrant import (get_db, upsert, promote_staging, rollback_staging,
                           ensure_collection, detect_renames, query_similar,
                           find_semantic_duplicates)
@@ -106,6 +106,7 @@ def cmd_ingest(args, cfg):
                 overlap=thresholds["chunk_overlap_tokens"],
                 threshold=thresholds["page_chunk_threshold_tokens"],
                 model_name=cfg["embedding_model"],
+                cfg=cfg,
             )
             upsert(db, cfg, rel_final, chunks, staging=True)
             final_path = os.path.join(workspace, rel_final.replace("/", os.sep))
@@ -158,8 +159,7 @@ def cmd_ingest(args, cfg):
 def cmd_query(args, cfg):
     from datetime import datetime as _datetime
     db = get_db(cfg)
-    model, _ = _load_model(cfg["embedding_model"])
-    vector = model.encode(args.q, normalize_embeddings=True).tolist()
+    vector = embed_query(args.q, cfg)
 
     results = query_similar(db, cfg, vector, k=args.k)
 
@@ -199,6 +199,8 @@ def _wiki_md_files(workspace: str, exclude_patterns: list = None):
                 continue
             if "raw" in md_file.parts or ".archive" in md_file.parts:
                 continue
+            if ".stversions" in md_file.parts:  # backup di Syncthing: non ingerire
+                continue
             if md_file.stat().st_size > _MAX_FILE_BYTES:
                 continue
             if exclude_patterns:
@@ -226,6 +228,7 @@ def cmd_rebuild(args, cfg):
             overlap=thresholds["chunk_overlap_tokens"],
             threshold=thresholds["page_chunk_threshold_tokens"],
             model_name=cfg["embedding_model"],
+            cfg=cfg,
         )
         upsert(db, cfg, rel, chunks)
         count += 1

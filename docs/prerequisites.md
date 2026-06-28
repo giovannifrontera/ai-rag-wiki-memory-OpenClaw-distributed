@@ -34,6 +34,37 @@ The first embedding run downloads `BAAI/bge-m3` from Hugging Face. Set `HF_TOKEN
 export HF_TOKEN=hf_...
 ```
 
+## Embedding backend (CPU / GPU / Ollama)
+
+The embedding backend is configurable in `wiki.config.json` under `embedding`.
+Default works everywhere with no extra setup:
+
+```json
+"embedding": {
+  "backend": "sentence-transformers",
+  "model": "BAAI/bge-m3",
+  "device": "cpu",
+  "ollama_host": "http://localhost:11434"
+}
+```
+
+- **NVIDIA GPU**: set `"device": "cuda"` (keeps `sentence-transformers`). Requires a CUDA-enabled PyTorch.
+- **AMD / Ryzen iGPU or any GPU via Ollama** (recommended on non-NVIDIA): set
+  `"backend": "ollama"`. ROCm on `sentence-transformers` is unreliable on iGPUs;
+  Ollama runs the model on the GPU and the toolchain only does an HTTP call.
+  Install Ollama and pull the model once, then point `ollama_host` at it:
+
+  ```bash
+  ollama pull bge-m3
+  # wiki.config.json -> "model": "bge-m3", "ollama_host": "http://localhost:11434"
+  ```
+
+  Clients without a local GPU can set `ollama_host` to the server's Ollama
+  endpoint (e.g. `http://<server-tailnet-ip>:11434`) to share its GPU, the same
+  way they share Qdrant. With the Ollama backend `sentence-transformers` is still
+  used only for chunk tokenization, no embedding model is loaded in-process — so
+  the pre-prompt hook does not reload a model on every prompt.
+
 ## Configuration
 
 Server `wiki.config.json`:

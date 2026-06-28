@@ -19,6 +19,12 @@
     "quality_filter_min_score": 6
   },
   "embedding_model": "BAAI/bge-m3",
+  "embedding": {
+    "backend": "sentence-transformers",
+    "model": "BAAI/bge-m3",
+    "device": "cpu",
+    "ollama_host": "http://localhost:11434"
+  },
   "qdrant": {
     "host": "localhost",
     "port": 6333,

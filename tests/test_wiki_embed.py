@@ -99,3 +99,78 @@ def test_embed_file_path_does_not_affect_hash(tmp_path):
     h1 = embed_file(str(md1))[0]["content_hash"]
     h2 = embed_file(str(md2))[0]["content_hash"]
     assert h1 == h2  # hash = SHA256(testo), path non incluso
+
+
+# --- backend di embedding configurabile ---
+from wiki_embed import _embed_opts, embed_texts, embed_query
+
+
+def test_embed_opts_defaults_backward_compat():
+    # Senza sezione "embedding" usa il vecchio campo top-level e device auto.
+    opts = _embed_opts({"embedding_model": "BAAI/bge-m3"})
+    assert opts["backend"] == "sentence-transformers"
+    assert opts["model"] == "BAAI/bge-m3"
+    assert opts["device"] is None
+
+
+def test_embed_opts_reads_embedding_section():
+    cfg = {"embedding": {"backend": "ollama", "model": "bge-m3",
+                         "device": "cuda", "ollama_host": "http://h:11434"}}
+    opts = _embed_opts(cfg)
+    assert opts == {"backend": "ollama", "model": "bge-m3",
+                    "device": "cuda", "ollama_host": "http://h:11434"}
+
+
+def test_embed_ollama_backend_dispatch(monkeypatch):
+    """Backend ollama deve fare HTTP, NON caricare sentence-transformers."""
+    import wiki_embed
+    calls = []
+
+    class FakeResp:
+        def raise_for_status(self): pass
+        def json(self): return {"embedding": [0.5] * 1024}
+
+    def fake_post(url, json, timeout):
+        calls.append((url, json))
+        return FakeResp()
+
+    monkeypatch.setattr("requests.post", fake_post)
+    cfg = {"embedding": {"backend": "ollama", "model": "bge-m3",
+                         "ollama_host": "http://srv:11434"}}
+    vec = embed_query("hello world", cfg)
+    assert len(vec) == 1024
+    assert calls[0][0] == "http://srv:11434/api/embeddings"
+    assert calls[0][1] == {"model": "bge-m3", "prompt": "hello world"}
+
+
+def test_embed_ollama_retries_then_succeeds(monkeypatch):
+    import wiki_embed
+    monkeypatch.setattr("time.sleep", lambda *_: None)
+    attempts = {"n": 0}
+
+    class FakeResp:
+        def raise_for_status(self): pass
+        def json(self): return {"embedding": [0.1] * 1024}
+
+    def flaky_post(url, json, timeout):
+        attempts["n"] += 1
+        if attempts["n"] < 3:
+            raise ConnectionError("ollama down")
+        return FakeResp()
+
+    monkeypatch.setattr("requests.post", flaky_post)
+    out = wiki_embed._embed_ollama(["x"], "bge-m3", "http://h:11434")
+    assert len(out) == 1 and len(out[0]) == 1024
+    assert attempts["n"] == 3  # ha ritentato fino al successo
+
+
+def test_embed_ollama_raises_after_exhausting_retries(monkeypatch):
+    import pytest, wiki_embed
+    monkeypatch.setattr("time.sleep", lambda *_: None)
+
+    def always_fail(url, json, timeout):
+        raise ConnectionError("ollama down")
+
+    monkeypatch.setattr("requests.post", always_fail)
+    with pytest.raises(RuntimeError):
+        wiki_embed._embed_ollama(["x"], "bge-m3", "http://h:11434", retries=2)
