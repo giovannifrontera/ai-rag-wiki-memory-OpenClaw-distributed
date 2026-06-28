@@ -87,7 +87,7 @@ def test_staging_rollback(client):
 
 def test_query_with_prefix(client):
     upsert(client, CONFIG, "wiki/magia.md", make_chunks("wiki/magia.md"))
-    upsert(client, CONFIG, "wiki-works/trading/analisi.md", make_chunks("wiki-works/trading/analisi.md"))
+    upsert(client, CONFIG, "wiki-works/research/analisi.md", make_chunks("wiki-works/research/analisi.md"))
     results = query_similar(client, CONFIG, FAKE_VECTOR, k=5, path_prefix="wiki-works/")
     assert all(r["path"].startswith("wiki-works/") for r in results)
 

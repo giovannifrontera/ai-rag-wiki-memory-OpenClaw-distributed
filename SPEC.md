@@ -118,7 +118,7 @@ Agent executes this checklist for every message before proceeding:
 ### Classification output (always visible before acting)
 
 ```
-[INTENT: INGEST | WORKSPACE: trading | CERTAINTY: high]
+[INTENT: INGEST | WORKSPACE: research | CERTAINTY: high]
 ```
 
 The user can correct this line before Agent executes any operation.
@@ -250,9 +250,9 @@ Index: `(path, chunk_id) UNIQUE`, `vector ANN (HNSW)`.
 {
   "workspace": "/path/to/workspace",
   "projects": {
-    "trading": {
-      "path": "wiki-works/trading",
-      "keywords": ["mercati", "indicatori", "trading", "borsa", "azioni"]
+    "research": {
+      "path": "wiki-works/research",
+      "keywords": ["papers", "notes", "research", "sources", "citations"]
     },
     "ricerca": {
       "path": "wiki-works/ricerca",

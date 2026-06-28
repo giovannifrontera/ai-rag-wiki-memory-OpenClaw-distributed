@@ -128,7 +128,7 @@ It stores processed file hashes in `.synced-ingested.json`, so unchanged files d
 
 ### Windows: folder path defaults to the folder label, not the correct path
 
-When the server shares a folder with a human-readable label (e.g. "Virginia Wiki"), Syncthing on Windows proposes that label as the local directory name. Files end up in `C:\Users\<you>\Virginia Wiki\` instead of `C:\Users\<you>\.openclaw\workspace\`.
+When the server shares a folder with a human-readable label (e.g. "Team Wiki"), Syncthing on Windows proposes that label as the local directory name. Files end up in `C:\Users\<you>\Team Wiki\` instead of `C:\Users\<you>\.openclaw\workspace\`.
 
 **Fix:** immediately after accepting the shared folder in Syncthing UI, edit it and set the local path to `C:\Users\<you>\.openclaw\workspace`. Do this **before the first sync starts**. If the sync has already run in the wrong directory:
 

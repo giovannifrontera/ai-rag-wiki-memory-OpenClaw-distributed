@@ -27,11 +27,11 @@ def test_is_not_stale_when_current(tmp_workspace):
 
 def test_rebuild_index_basic(tmp_workspace):
     wiki_dir = str(tmp_workspace / "wiki")
-    (tmp_workspace / "wiki" / "concepts" / "mean-reversion.md").write_text(
-        "---\ntitle: Mean Reversion\ndescription: Strategia di mean reversion\n---\n# Mean Reversion\n"
+    (tmp_workspace / "wiki" / "concepts" / "source-triangulation.md").write_text(
+        "---\ntitle: Source Triangulation\ndescription: Metodo di confronto tra fonti\n---\n# Source Triangulation\n"
     )
     content = rebuild_index(wiki_dir, token_budget=4000)
-    assert "mean-reversion" in content
+    assert "source-triangulation" in content
     assert "Concepts" in content
 
 def test_rebuild_index_excludes_raw(tmp_workspace):

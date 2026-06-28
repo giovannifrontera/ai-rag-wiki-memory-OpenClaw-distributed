@@ -124,7 +124,7 @@ def test_find_semantic_duplicates_skips_wiki_identity(tmp_path):
 - [ ] **Step 2: Run tests to verify they fail**
 
 ```
-cd C:\Users\giova\ai-wiki-system
+cd C:\\Users\\<you>\\ai-wiki-system
 py -m pytest tests/test_wiki_lancedb.py::test_find_semantic_duplicates_empty -v
 ```
 Expected: `FAILED` with `ImportError: cannot import name 'find_semantic_duplicates'`
@@ -693,9 +693,9 @@ Sostituisci il contenuto con:
     "project_default": "ricerca"
   },
   "projects": {
-    "trading": {
-      "path": "wiki-works/trading",
-      "keywords": ["mercati", "indicatori", "trading", "borsa", "azioni", "ticker"]
+    "research": {
+      "path": "wiki-works/research",
+      "keywords": ["papers", "notes", "research", "sources", "citations", "review"]
     },
     "ricerca": {
       "path": "wiki-works/ricerca",

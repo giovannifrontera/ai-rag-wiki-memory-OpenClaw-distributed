@@ -346,7 +346,7 @@ curl -L https://github.com/qdrant/qdrant/releases/latest/download/qdrant-x86_64-
 
 # Install the systemd service from the repo
 sudo cp deploy/qdrant.service /etc/systemd/system/
-# Edit the username if it is not 'giovanni'
+# Adjust User, WorkingDirectory, or ExecStart if your install paths differ
 sudo nano /etc/systemd/system/qdrant.service
 
 sudo systemctl daemon-reload

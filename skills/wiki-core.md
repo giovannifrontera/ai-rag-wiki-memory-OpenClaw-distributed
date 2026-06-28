@@ -202,7 +202,7 @@ Do not run `rebuild` during normal operation — it drops and recreates the enti
 
 ## §syncthing-conflicts — Protocollo conflitti Syncthing
 
-When multiple Virginia instances run simultaneously and both write to the same wiki
+When multiple agent instances run simultaneously and both write to the same wiki
 page, Syncthing creates a conflict file named:
 `original-filename.sync-conflict-YYYYMMDD-HHMMSS-MACHINEID.md`
 

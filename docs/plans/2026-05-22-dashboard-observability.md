@@ -847,7 +847,7 @@ async function runLint() {
 ### Step 6.4 — Manual smoke test
 
 ```bash
-cd C:/Users/giova/ai-wiki-system
+cd C:/Users/<you>/ai-wiki-system
 py scripts/wiki.py serve --workspace . --no-auth
 ```
 
