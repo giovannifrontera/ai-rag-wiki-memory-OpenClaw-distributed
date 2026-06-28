@@ -26,31 +26,31 @@ def run_wiki(tmp_workspace, *args):
 
 def test_full_ingest_query_cycle(tmp_workspace):
     """Ciclo completo: ingest → query → trova il documento."""
-    page = tmp_workspace / "wiki" / "concepts" / "rsi.md.tmp"
+    page = tmp_workspace / "wiki" / "concepts" / "citation-tracking.md.tmp"
     page.write_text(
-        "# RSI — Relative Strength Index\n"
-        "Indicatore di momentum che misura la velocità e l'ampiezza delle variazioni di prezzo.\n"
-        "Valori sopra 70 indicano ipercomprato, sotto 30 ipervenduto.",
+        "# Citation Tracking\n"
+        "Metodo di ricerca che segue citazioni in avanti e indietro tra fonti accademiche.\n"
+        "Aiuta a trovare studi correlati e documenti fondamentali.",
         encoding="utf-8"
     )
     ingest_result = run_wiki(tmp_workspace, "ingest",
                              "--pages", str(page),
-                             "--log", "ingest | RSI")
+                             "--log", "ingest | Citation Tracking")
     assert ingest_result["status"] == "ok"
 
     query_result = run_wiki(tmp_workspace, "query",
-                            "--q", "indicatori di momentum per trading",
+                            "--q", "metodi di ricerca con citazioni",
                             "--k", "3")
     assert query_result["status"] == "ok"
     paths = [r["path"] for r in query_result["results"]]
-    assert any("rsi" in p for p in paths), f"RSI non trovato nei risultati: {paths}"
+    assert any("citation-tracking" in p for p in paths), f"Documento non trovato nei risultati: {paths}"
 
 
 def test_session_state_after_ingest(tmp_workspace):
     """Dopo INGEST, wiki-session.md deve avere status ok."""
-    page = tmp_workspace / "wiki" / "concepts" / "macd.md.tmp"
-    page.write_text("# MACD\nIndicatore trend-following.", encoding="utf-8")
-    run_wiki(tmp_workspace, "ingest", "--pages", str(page), "--log", "ingest | MACD")
+    page = tmp_workspace / "wiki" / "concepts" / "literature-review.md.tmp"
+    page.write_text("# Literature Review\nSintesi strutturata delle fonti.", encoding="utf-8")
+    run_wiki(tmp_workspace, "ingest", "--pages", str(page), "--log", "ingest | Literature Review")
 
     session = (tmp_workspace / "wiki-session.md").read_text()
     assert "status: ok" in session

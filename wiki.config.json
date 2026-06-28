@@ -1,9 +1,9 @@
 {
   "workspace": "~/.openclaw/workspace",
   "projects": {
-    "trading": {
-      "path": "wiki-works/trading",
-      "keywords": ["mercati", "indicatori", "trading", "borsa", "azioni"]
+    "research": {
+      "path": "wiki-works/research",
+      "keywords": ["papers", "notes", "research", "sources", "citations"]
     }
   },
   "thresholds": {

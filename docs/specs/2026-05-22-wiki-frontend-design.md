@@ -130,7 +130,7 @@ Single-page app, nessun build step. Librerie da CDN:
 **Layout:**
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  AI Wiki Memory  [wiki] [ricerca] [trading] [tutti]  🔍 │  ← header
+│  AI Wiki Memory  [wiki] [ricerca] [research] [tutti]  🔍 │  ← header
 ├───────────────────────────┬─────────────────────────────┤
 │                           │  PANNELLO PAGINA            │
 │    MAPPA GRAFO            │  ─────────────────          │

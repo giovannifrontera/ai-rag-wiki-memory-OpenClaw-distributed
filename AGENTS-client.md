@@ -142,7 +142,7 @@ If you remove a shared folder from the client's Syncthing config, the server wil
 
 ### Windows: folder path defaults to folder label, not the correct path
 
-When the server shares a folder with a human-readable name (e.g. "Virginia Wiki"), Syncthing on Windows proposes that label as the local folder path. Files end up in `C:\Users\<you>\Virginia Wiki\` instead of `C:\Users\<you>\.openclaw\workspace\`.
+When the server shares a folder with a human-readable name (e.g. "Team Wiki"), Syncthing on Windows proposes that label as the local folder path. Files end up in `C:\Users\<you>\Team Wiki\` instead of `C:\Users\<you>\.openclaw\workspace\`.
 
 **Action required after accepting a shared folder on Windows:**
 1. Before the first sync starts, edit the folder in Syncthing UI and set the local path to `C:\Users\<you>\.openclaw\workspace`.

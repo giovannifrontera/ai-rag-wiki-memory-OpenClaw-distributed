@@ -122,7 +122,7 @@ def test_node_has_required_fields(tmp_workspace):
 - [ ] **Step 2: Run test to verify it fails**
 
 ```
-cd C:\Users\giova\ai-wiki-system && pytest tests/test_wiki_graph.py -v
+cd C:\\Users\\<you>\\ai-wiki-system && pytest tests/test_wiki_graph.py -v
 ```
 Expected: `ModuleNotFoundError: No module named 'wiki_graph'`
 
@@ -1092,7 +1092,7 @@ No automated tests — manual visual verification.
 - [ ] **Step 1: Create `frontend/` directory**
 
 ```
-mkdir C:\Users\giova\ai-wiki-system\frontend
+mkdir C:\\Users\\<you>\\ai-wiki-system\frontend
 ```
 
 - [ ] **Step 2: Create `frontend/index.html`**
@@ -1555,7 +1555,7 @@ init();
 - [ ] **Step 3: Verify server starts**
 
 ```
-cd C:\Users\giova\ai-wiki-system
+cd C:\\Users\\<you>\\ai-wiki-system
 py scripts/wiki.py serve --workspace . --no-auth
 ```
 Expected output: `INFO:     Uvicorn running on http://127.0.0.1:7331`

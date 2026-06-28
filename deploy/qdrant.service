@@ -4,9 +4,9 @@ After=network.target
 
 [Service]
 Type=simple
-User=giovanni
-WorkingDirectory=/home/giovanni/.qdrant
-ExecStart=/home/giovanni/.local/bin/qdrant
+User=qdrant
+WorkingDirectory=/var/lib/qdrant
+ExecStart=/usr/local/bin/qdrant
 Restart=on-failure
 RestartSec=5
 

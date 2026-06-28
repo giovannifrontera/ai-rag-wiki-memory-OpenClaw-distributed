@@ -814,9 +814,9 @@ Il file completo dopo la modifica:
     "project_default": "ricerca"
   },
   "projects": {
-    "trading": {
-      "path": "wiki-works/trading",
-      "keywords": ["mercati", "indicatori", "trading", "borsa", "azioni", "ticker"]
+    "research": {
+      "path": "wiki-works/research",
+      "keywords": ["papers", "notes", "research", "sources", "citations", "review"]
     },
     "ricerca": {
       "path": "wiki-works/ricerca",

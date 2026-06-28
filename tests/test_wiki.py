@@ -93,9 +93,9 @@ def test_ingest_rollback_on_missing_tmp(tmp_workspace):
 
 def test_query_returns_results(tmp_workspace):
     tmp_page = tmp_workspace / "wiki" / "concepts" / "query-test.md.tmp"
-    tmp_page.write_text("# Mean Reversion\nStrategia di trading basata sul ritorno alla media.", encoding="utf-8")
+    tmp_page.write_text("# Source Triangulation\nMetodo di ricerca basato sul confronto tra fonti indipendenti.", encoding="utf-8")
     run_wiki(tmp_workspace, "ingest", "--pages", str(tmp_page), "--log", "ingest | Query Test")
-    result = run_wiki(tmp_workspace, "query", "--q", "strategie di trading")
+    result = run_wiki(tmp_workspace, "query", "--q", "metodi di ricerca con fonti indipendenti")
     assert result["status"] == "ok"
     assert isinstance(result["results"], list)
     assert len(result["results"]) >= 1
